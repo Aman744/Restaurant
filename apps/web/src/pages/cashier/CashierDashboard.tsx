@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
 import { CreditCard, Receipt, CheckCircle } from 'lucide-react';
+import { useAuth } from '../../features/auth/context/AuthContext.js';
+import { useTenant } from '../../features/auth/context/TenantContext.js';
+import { useToast } from '../../components/shared/ToastContext';
+import { db } from '../../lib/firebase.js';
+import { collection, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+import type { Order } from '@restaurant-qr/core';
 
 interface BillTicket {
   id: string;
@@ -13,24 +19,179 @@ interface BillTicket {
 }
 
 export const CashierDashboard: React.FC = () => {
+  const { tenant } = useTenant();
+  const { isMockMode } = useAuth();
+  const toast = useToast();
+
   const sidebarItems = [
     { name: 'Pending Bills', path: '/cashier', icon: CreditCard },
   ];
 
-  const [pendingBills, setPendingBills] = useState<BillTicket[]>([
-    { id: 'ord_201', tableNumber: 'Table 2', subtotal: 45.0, tax: 3.6, serviceCharge: 4.5, total: 53.1, itemsCount: 4 },
-    { id: 'ord_202', tableNumber: 'Table 6', subtotal: 28.5, tax: 2.28, serviceCharge: 2.85, total: 33.63, itemsCount: 2 },
-  ]);
-
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [currencySymbol, setCurrencySymbol] = useState('₹');
+  const [loading, setLoading] = useState(true);
+  
   const [selectedBill, setSelectedBill] = useState<BillTicket | null>(null);
   const [splitCount, setSplitCount] = useState(1);
   const [paymentMode, setPaymentMode] = useState<'cash' | 'card' | 'upi'>('cash');
 
-  const handleSettle = (billId: string) => {
-    setPendingBills((prev) => prev.filter((b) => b.id !== billId));
-    setSelectedBill(null);
-    setSplitCount(1);
+  // Load settings and subscribe to active unpaid orders
+  useEffect(() => {
+    if (!tenant) return;
+    let active = true;
+
+    // Load general settings to find currency
+    const loadSettings = async () => {
+      try {
+        if (isMockMode) {
+          setCurrencySymbol('₹');
+        } else {
+          const settingsSnap = await getDoc(doc(db, 'tenants', tenant.id, 'settings', 'general'));
+          if (settingsSnap.exists() && active) {
+            const data = settingsSnap.data();
+            setCurrencySymbol(data.currency === 'INR' ? '₹' : '$');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load currency settings:', e);
+      }
+    };
+    loadSettings();
+
+    // Subscribe to active unpaid orders
+    if (isMockMode) {
+      const syncMockOrders = () => {
+        const stored = localStorage.getItem('restaurant_qr_mock_orders_db');
+        if (stored) {
+          try {
+            const parsed: Order[] = JSON.parse(stored);
+            const activeUnpaid = parsed.filter(
+              (o) => o.tenantId === tenant.id && 
+                     o.payment.status !== 'paid' && 
+                     o.status !== 'completed' && 
+                     o.status !== 'archived'
+            );
+            if (active) {
+              setOrders(activeUnpaid);
+              setLoading(false);
+            }
+          } catch (e) {}
+        } else {
+          if (active) {
+            setOrders([]);
+            setLoading(false);
+          }
+        }
+      };
+
+      syncMockOrders();
+      const interval = setInterval(syncMockOrders, 2000);
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    } else {
+      const colRef = collection(db, 'tenants', tenant.id, 'orders');
+      const unsubscribe = onSnapshot(colRef, (snap) => {
+        const ordersList: Order[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          // Filter unpaid/pending active orders
+          if (data.payment?.status !== 'paid' && data.status !== 'completed' && data.status !== 'archived') {
+            const toDate = (val: any): Date => {
+              if (!val) return new Date();
+              if (typeof val.toDate === 'function') return val.toDate();
+              return new Date(val);
+            };
+            ordersList.push({
+              id: docSnap.id,
+              ...data,
+              createdAt: toDate(data.createdAt),
+              updatedAt: toDate(data.updatedAt)
+            } as Order);
+          }
+        });
+        if (active) {
+          setOrders(ordersList);
+          setLoading(false);
+        }
+      }, (err) => {
+        console.error('Orders subscription failed:', err);
+      });
+
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    }
+  }, [tenant, isMockMode]);
+
+  // Map orders state to UI bills list structure
+  const pendingBills = orders.map((o) => ({
+    id: o.id,
+    tableNumber: o.tableNumber || `Table ${o.tableId}`,
+    subtotal: o.totals.subtotal,
+    tax: o.totals.tax,
+    serviceCharge: o.totals.serviceCharge,
+    total: o.totals.grandTotal,
+    itemsCount: o.items.reduce((sum, it) => sum + it.quantity, 0)
+  }));
+
+  const handleSettle = async (billId: string) => {
+    try {
+      if (isMockMode) {
+        const stored = localStorage.getItem('restaurant_qr_mock_orders_db');
+        if (stored) {
+          const parsed: Order[] = JSON.parse(stored);
+          const updated = parsed.map((o) => {
+            if (o.id === billId) {
+              return {
+                ...o,
+                status: 'completed' as const,
+                payment: {
+                  ...o.payment,
+                  status: 'paid' as const,
+                  method: paymentMode,
+                  amountPaid: o.totals.grandTotal
+                },
+                updatedAt: new Date()
+              };
+            }
+            return o;
+          });
+          localStorage.setItem('restaurant_qr_mock_orders_db', JSON.stringify(updated));
+        }
+      } else {
+        if (!tenant) return;
+        await updateDoc(doc(db, 'tenants', tenant.id, 'orders', billId), {
+          status: 'completed',
+          'payment.status': 'paid',
+          'payment.method': paymentMode,
+          'payment.amountPaid': selectedBill?.total || 0,
+          updatedAt: new Date()
+        });
+      }
+
+      toast.success(`Bill for ${selectedBill?.tableNumber} settled successfully via ${paymentMode.toUpperCase()}!`);
+      setSelectedBill(null);
+      setSplitCount(1);
+    } catch (err: any) {
+      toast.error(`Settlement failed: ${err.message}`);
+    }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Cashier Billing & POS" sidebarItems={sidebarItems}>
+        <div className="flex h-64 items-center justify-center text-zinc-400">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+            <p className="text-xs font-semibold">Loading bills queue...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Cashier Billing & POS" sidebarItems={sidebarItems}>
@@ -62,7 +223,7 @@ export const CashierDashboard: React.FC = () => {
 
                   <div className="flex justify-between items-end mt-4">
                     <span className="text-xs text-zinc-400 font-medium">Grand Total:</span>
-                    <span className="text-xl font-bold text-white">${b.total.toFixed(2)}</span>
+                    <span className="text-xl font-bold text-white">{currencySymbol}{b.total.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
@@ -90,19 +251,19 @@ export const CashierDashboard: React.FC = () => {
                 <div className="space-y-2 border-y border-zinc-800 py-4 text-sm">
                   <div className="flex justify-between text-zinc-400">
                     <span>Subtotal</span>
-                    <span>${selectedBill.subtotal.toFixed(2)}</span>
+                    <span>{currencySymbol}{selectedBill.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-zinc-400">
                     <span>Tax (GST)</span>
-                    <span>${selectedBill.tax.toFixed(2)}</span>
+                    <span>{currencySymbol}{selectedBill.tax.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-zinc-400">
                     <span>Service Charge</span>
-                    <span>${selectedBill.serviceCharge.toFixed(2)}</span>
+                    <span>{currencySymbol}{selectedBill.serviceCharge.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-white font-bold text-base mt-2">
                     <span>Total Amount</span>
-                    <span>${selectedBill.total.toFixed(2)}</span>
+                    <span>{currencySymbol}{selectedBill.total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -128,7 +289,7 @@ export const CashierDashboard: React.FC = () => {
                   {splitCount > 1 && (
                     <div className="p-3 border border-emerald-500/10 bg-emerald-500/5 rounded-xl flex justify-between text-xs text-emerald-400 font-semibold mt-2">
                       <span>Each Pays:</span>
-                      <span>${(selectedBill.total / splitCount).toFixed(2)}</span>
+                      <span>{currencySymbol}{(selectedBill.total / splitCount).toFixed(2)}</span>
                     </div>
                   )}
                 </div>
@@ -161,7 +322,7 @@ export const CashierDashboard: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="border border-dashed border-zinc-800 py-16 text-center text-zinc-600 rounded-2xl">
+              <div className="border border-dashed border-zinc-800 py-16 text-center text-zinc-650 rounded-2xl">
                 <Receipt className="h-8 w-8 mx-auto text-zinc-700 mb-3" />
                 <p className="text-xs font-medium">Select a pending bill to view settlement console</p>
               </div>
