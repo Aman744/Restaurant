@@ -10,14 +10,14 @@ import { AddMenuModal } from './AddMenuModal';
 
 interface MenuTabProps {
   tenantId: string;
-  menuItems: MenuItem[];
+  menuItems?: MenuItem[];
   isMockMode: boolean;
   currencySymbol?: string;
 }
 
 export const MenuTab: React.FC<MenuTabProps> = ({
   tenantId,
-  menuItems,
+  menuItems = [],
   isMockMode,
   currencySymbol = '₹'
 }) => {
@@ -25,6 +25,8 @@ export const MenuTab: React.FC<MenuTabProps> = ({
   const { confirm } = useConfirm();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const safeMenuItems = Array.isArray(menuItems) ? menuItems : [];
 
   const handleStockToggle = async (item: MenuItem) => {
     try {
@@ -66,15 +68,18 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       header: 'Dish Name',
       accessorKey: 'name',
       sortable: true,
-      cell: (item) => (
-        <div className="flex items-center gap-3">
-          <img src={item.images[0]} alt={item.name} className="h-9 w-9 rounded-xl object-cover border border-zinc-800" />
-          <div>
-            <div className="font-bold text-white text-xs">{item.name}</div>
-            <div className="text-[10px] text-zinc-500">{item.description || 'No description'}</div>
+      cell: (item) => {
+        const imageUrl = item.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+        return (
+          <div className="flex items-center gap-3">
+            <img src={imageUrl} alt={item.name} className="h-9 w-9 rounded-xl object-cover border border-zinc-800" />
+            <div>
+              <div className="font-bold text-white text-xs">{item.name}</div>
+              <div className="text-[10px] text-zinc-500">{item.description || 'No description'}</div>
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       header: 'Category',
@@ -82,7 +87,7 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       sortable: true,
       cell: (item) => (
         <span className="capitalize px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-300">
-          {item.categoryId}
+          {item.categoryId || 'default'}
         </span>
       )
     },
@@ -93,7 +98,7 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       cell: (item) => (
         <span className="font-bold text-white">
           {currencySymbol}
-          {item.price.toFixed(2)}
+          {(item.price || 0).toFixed(2)}
         </span>
       )
     },
@@ -164,7 +169,7 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       </div>
 
       {/* Enterprise Data Table */}
-      <DataTable data={menuItems} columns={columns} searchPlaceholder="Search dishes by name or category..." searchField="name" />
+      <DataTable data={safeMenuItems} columns={columns} searchPlaceholder="Search dishes by name or category..." searchField="name" />
 
       {/* Add/Edit Menu Item Modal */}
       <AddMenuModal tenantId={tenantId} isMockMode={isMockMode} />

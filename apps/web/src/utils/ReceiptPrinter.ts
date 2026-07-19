@@ -2,7 +2,7 @@ import type { Order, Tenant } from '@restaurant-qr/core';
 
 export class ReceiptPrinter {
   /**
-   * Generates a clean HTML thermal receipt template
+   * Generates a clean HTML thermal receipt template with safe property access
    */
   static generateReceiptHtml(order: Order, tenant?: Tenant | null): string {
     const currency = '₹';
@@ -10,22 +10,30 @@ export class ReceiptPrinter {
     const header = tenant?.theme?.receiptTheme?.header || 'Thank you for dining with us!';
     const footer = tenant?.theme?.receiptTheme?.footer || 'Please visit again!';
 
-    const itemsHtml = order.items
+    const safeItems = Array.isArray(order?.items) ? order.items : [];
+    const itemsHtml = safeItems
       .map(
         (item) => `
         <tr>
-          <td style="padding: 4px 0;">${item.name} x${item.quantity}</td>
-          <td style="text-align: right; padding: 4px 0;">${currency}${item.totalPrice.toFixed(2)}</td>
+          <td style="padding: 4px 0;">${item.name || 'Item'} x${item.quantity || 1}</td>
+          <td style="text-align: right; padding: 4px 0;">${currency}${(item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0).toFixed(2)}</td>
         </tr>
       `
       )
       .join('');
 
+    const subtotal = (order?.totals?.subtotal || 0).toFixed(2);
+    const tax = (order?.totals?.tax || 0).toFixed(2);
+    const serviceCharge = (order?.totals?.serviceCharge || 0).toFixed(2);
+    const grandTotal = (order?.totals?.grandTotal || 0).toFixed(2);
+    const paymentStatus = (order?.payment?.status || 'unpaid').toUpperCase();
+    const paymentMethod = order?.payment?.method ? order.payment.method.toUpperCase() : null;
+
     return `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Receipt - Order #${order.id}</title>
+          <title>Receipt - Order #${order?.id || 'N/A'}</title>
           <style>
             body {
               font-family: 'Courier New', Courier, monospace;
@@ -48,10 +56,10 @@ export class ReceiptPrinter {
           <div class="text-center" style="font-size: 10px; margin-top: 4px;">${header}</div>
           <div class="divider"></div>
 
-          <div><strong>Order ID:</strong> ${order.id}</div>
-          <div><strong>Table:</strong> ${order.tableNumber || `Table ${order.tableId}`}</div>
-          <div><strong>Date:</strong> ${new Date(order.createdAt).toLocaleString()}</div>
-          ${order.customerName ? `<div><strong>Customer:</strong> ${order.customerName}</div>` : ''}
+          <div><strong>Order ID:</strong> ${order?.id || 'N/A'}</div>
+          <div><strong>Table:</strong> ${order?.tableNumber || `Table ${order?.tableId || '1'}`}</div>
+          <div><strong>Date:</strong> ${new Date(order?.createdAt || Date.now()).toLocaleString()}</div>
+          ${order?.customerName ? `<div><strong>Customer:</strong> ${order.customerName}</div>` : ''}
 
           <div class="divider"></div>
 
@@ -63,7 +71,7 @@ export class ReceiptPrinter {
               </tr>
             </thead>
             <tbody>
-              ${itemsHtml}
+              ${itemsHtml || '<tr><td colSpan="2" style="text-align:center; padding:8px;">No items</td></tr>'}
             </tbody>
           </table>
 
@@ -72,25 +80,25 @@ export class ReceiptPrinter {
           <table>
             <tr>
               <td>Subtotal</td>
-              <td class="text-right">${currency}${order.totals.subtotal.toFixed(2)}</td>
+              <td class="text-right">${currency}${subtotal}</td>
             </tr>
             <tr>
               <td>Tax (GST)</td>
-              <td class="text-right">${currency}${order.totals.tax.toFixed(2)}</td>
+              <td class="text-right">${currency}${tax}</td>
             </tr>
             <tr>
               <td>Service Charge</td>
-              <td class="text-right">${currency}${order.totals.serviceCharge.toFixed(2)}</td>
+              <td class="text-right">${currency}${serviceCharge}</td>
             </tr>
             <tr style="font-size: 14px; font-weight: bold;">
               <td style="padding-top: 6px;">Total</td>
-              <td class="text-right" style="padding-top: 6px;">${currency}${order.totals.grandTotal.toFixed(2)}</td>
+              <td class="text-right" style="padding-top: 6px;">${currency}${grandTotal}</td>
             </tr>
           </table>
 
           <div class="divider"></div>
-          <div class="text-center font-bold">Payment Status: ${order.payment.status.toUpperCase()}</div>
-          ${order.payment.method ? `<div class="text-center" style="font-size: 10px;">Method: ${order.payment.method.toUpperCase()}</div>` : ''}
+          <div class="text-center font-bold">Payment Status: ${paymentStatus}</div>
+          ${paymentMethod ? `<div class="text-center" style="font-size: 10px;">Method: ${paymentMethod}</div>` : ''}
           <div class="divider"></div>
 
           <div class="text-center" style="font-size: 10px;">${footer}</div>

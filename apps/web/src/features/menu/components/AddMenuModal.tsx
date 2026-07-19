@@ -52,7 +52,7 @@ export const AddMenuModal: React.FC<AddMenuModalProps> = ({ tenantId, isMockMode
         categoryId: editingItem.categoryId || 'mains',
         description: editingItem.description || '',
         preparationTime: editingItem.preparationTime || 10,
-        dietaryTag: editingItem.dietaryTags[0] || 'veg'
+        dietaryTag: editingItem.dietaryTags?.[0] || 'veg'
       });
     } else {
       reset({
