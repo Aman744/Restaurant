@@ -177,7 +177,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -185,7 +185,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/menu"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -193,7 +193,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/tables"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -201,7 +201,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/staff"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -209,7 +209,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/reports"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -217,7 +217,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/settings"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
@@ -225,7 +225,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/admin/orders"
         element={
-          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager']}>
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
