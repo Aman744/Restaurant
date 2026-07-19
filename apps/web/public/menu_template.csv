@@ -1,0 +1,7 @@
+name,price,description,preparationTime,categoryId,dietaryTags
+"Truffle Angus Burger",18.50,"Fresh grilled Angus beef patty topped with truffle mayo, Swiss cheese, and caramelized onions",12,"burgers","non-veg"
+"Margherita Burrata Pizza",15.50,"Neapolitan style thin crust, fresh San Marzano tomato sauce, topped with burrata cheese and fresh basil",10,"pizza","veg"
+"Mint Lime Cooler",6.00,"Refreshing cold-pressed lime juice mixed with crushed mint leaves and sparkling soda",4,"beverages","veg;vegan"
+"Paneer Tikka Roll",14.50,"Spicy grilled cottage cheese mixed with onions and yogurt mint sauce wrapped in a paratha",8,"wraps","veg"
+"Garlic Herb Potato Wedges",8.00,"Crispy baked potato wedges tossed in roasted garlic oil and fresh garden herbs",7,"sides","veg;vegan"
+"Chocolate Lava Cake",9.00,"Warm chocolate cake with a molten chocolate center, served with a scoop of vanilla ice cream",12,"desserts","veg"

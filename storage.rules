@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Restaurant menus and branding assets (publicly readable, tenant-admin writeable)
+    match /restaurants/{tenantId}/{allPaths=**} {
+      allow read: if true; // Public menus images
+      allow write: if request.auth != null &&
+                    (request.auth.token.tenantId == tenantId &&
+                     (request.auth.token.role == 'restaurant-admin' || request.auth.token.role == 'super-admin')) &&
+                    request.resource.size < 5 * 1024 * 1024 && // Max 5MB file sizes
+                    request.resource.contentType.matches('image/.*'); // Restrict strictly to image types
+    }
+  }
+}

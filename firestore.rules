@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper: safe lookup of user doc for role/tenantId ─────────────────
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check custom claims first (set via Admin SDK), fall back to Firestore user doc
+    function userRole() {
+      return request.auth.token.get('role', getUserData().get('role', null));
+    }
+
+    function userTenantId() {
+      return request.auth.token.get('tenantId', getUserData().get('tenantId', null));
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && userRole() == 'super-admin';
+    }
+
+    function ownsTenant(tenantId) {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        userTenantId() == tenantId
+      );
+    }
+
+    // ─── /users/{uid} ────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        request.auth.uid == uid || isSuperAdmin()
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─── /tenants/{tenantId} ─────────────────────────────────────────────────
+    // Super Admin manages tenant root documents.
+    // Restaurant staff can read their own tenant doc.
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow create, update: if isSuperAdmin();
+      allow delete: if isSuperAdmin();
+
+      // ─── Menu Items (Public Read for Customers) ────────────────────────
+      match /menu_items/{itemId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
+      // ─── Tables (Public Read for Customers to resolve table name) ──────
+      match /tables/{tableId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
+      // ─── Orders (Public Create for Customers, Auth Read/Write for Staff) 
+      match /orders/{orderId} {
+        allow create: if true;
+        allow read, update, delete: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+
+        match /order_items/{itemId} {
+          allow create: if true;
+          allow read, update, delete: if isAuthenticated() && (
+            isSuperAdmin() ||
+            userTenantId() == tenantId ||
+            (
+              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+            )
+          );
+        }
+      }
+
+      // ─── All other subcollections (Staff, Inventory, Settings, etc.) ────
+      match /{document=**} {
+        allow read, write: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+    }
+
+    // ─── /subscriptions ──────────────────────────────────────────────────────
+    match /subscriptions/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ─── /system_settings ────────────────────────────────────────────────────
+    match /system_settings/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+  }
+}
