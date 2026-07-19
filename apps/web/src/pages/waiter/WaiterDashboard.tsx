@@ -19,14 +19,7 @@ const MOCK_TABLES_KEY = 'restaurant_qr_mock_tables_db';
 const MOCK_ALERTS_KEY = 'restaurant_qr_mock_waiter_alerts_db';
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
 
-const defaultMockTables: Table[] = [
-  { id: 't1', tenantId: 'sandbox', number: 'Table 1', seatingCapacity: 2, status: 'available', qrToken: '', createdAt: new Date() },
-  { id: 't2', tenantId: 'sandbox', number: 'Table 2', seatingCapacity: 4, status: 'occupied', qrToken: '', activeOrderId: 'ord_1', createdAt: new Date() },
-  { id: 't3', tenantId: 'sandbox', number: 'Table 3', seatingCapacity: 6, status: 'reserved', qrToken: '', createdAt: new Date() },
-  { id: 't4', tenantId: 'sandbox', number: 'Table 4', seatingCapacity: 4, status: 'cleaning', qrToken: '', createdAt: new Date() },
-  { id: 't5', tenantId: 'sandbox', number: 'Table 5', seatingCapacity: 2, status: 'available', qrToken: '', createdAt: new Date() },
-  { id: 't6', tenantId: 'sandbox', number: 'Table 6', seatingCapacity: 8, status: 'occupied', qrToken: '', createdAt: new Date() },
-];
+const defaultMockTables: Table[] = [];
 
 const defaultMockAlerts: WaiterAlert[] = [
   { id: 'a1', tableNumber: 'Table 2', type: 'call_waiter', time: '2 mins ago', status: 'pending' },

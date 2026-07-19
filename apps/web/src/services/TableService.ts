@@ -52,4 +52,13 @@ export class TableService {
     const docRef = doc(db, 'tenants', tenantId, 'tables', tableId);
     await deleteDoc(docRef);
   }
+
+  /**
+   * Clears all mock tables to reset demo storage
+   */
+  static async clearAllTables(_tenantId: string, isMockMode: boolean): Promise<void> {
+    if (isMockMode) {
+      localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify([]));
+    }
+  }
 }

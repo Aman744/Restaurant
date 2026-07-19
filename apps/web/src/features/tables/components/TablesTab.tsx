@@ -79,20 +79,44 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
     }
   ];
 
+  const safeTables = Array.isArray(tables) ? tables : [];
+
+  const handleClearAllTables = () => {
+    confirm({
+      title: 'Clear All Demo Tables?',
+      message: 'Are you sure you want to remove all pre-existing demo tables? You can then add only your desired tables.',
+      confirmText: 'Clear Tables',
+      onConfirm: async () => {
+        await TableService.clearAllTables(tenantId, isMockMode);
+        toast.success('Cleared demo tables.');
+      }
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider">Dining Floor Layout</h3>
-        <button
-          onClick={() => setAddModalOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
-        >
-          <Plus className="h-4 w-4" />
-          Provision Table
-        </button>
+        <div className="flex gap-2">
+          {isMockMode && safeTables.length > 0 && (
+            <button
+              onClick={handleClearAllTables}
+              className="px-3 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-white text-xs font-semibold rounded-xl"
+            >
+              Reset Tables
+            </button>
+          )}
+          <button
+            onClick={() => setAddModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
+          >
+            <Plus className="h-4 w-4" />
+            Provision Table
+          </button>
+        </div>
       </div>
 
-      <DataTable data={tables} columns={columns} searchPlaceholder="Search tables..." searchField="number" />
+      <DataTable data={safeTables} columns={columns} searchPlaceholder="Search tables..." searchField="number" />
 
       <AddTableModal tenantId={tenantId} isMockMode={isMockMode} />
       <ViewQrModal tenantId={tenantId} />
