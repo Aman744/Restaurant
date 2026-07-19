@@ -41,7 +41,7 @@ export class UserRepository implements IUserRepository {
   async getById(uid: string): Promise<UserProfile | null> {
     const docRef = doc(this.db, 'users', uid).withConverter(UserConverter);
     const snap = await getDoc(docRef);
-    return snap.exists() ? snap.data() : null;
+    return snap.exists() ? (snap.data() as UserProfile) : null;
   }
 
   async save(user: UserProfile): Promise<void> {

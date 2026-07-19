@@ -40,6 +40,7 @@ export const SuperAdminDashboard: React.FC = () => {
   ];
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -143,6 +144,35 @@ export const SuperAdminDashboard: React.FC = () => {
     loadSystemSettings();
     return () => { active = false; };
   }, [isMockMode]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchStats = async () => {
+      if (isMockMode) {
+        const stored = localStorage.getItem('restaurant_qr_mock_orders_db');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (active) setActiveOrdersCount(parsed.length);
+          } catch (e) {}
+        }
+      } else {
+        try {
+          const statsSnap = await getDoc(doc(db, 'system_settings', 'stats'));
+          if (statsSnap.exists()) {
+            const data = statsSnap.data();
+            if (active) setActiveOrdersCount(data.totalOrders || 0);
+          } else {
+            if (active) setActiveOrdersCount(0);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    fetchStats();
+    return () => { active = false; };
+  }, [isMockMode, tenants]);
 
   const handleAddTenant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -405,14 +435,14 @@ export const SuperAdminDashboard: React.FC = () => {
               <span className="text-[10px] text-zinc-500 font-medium">Provisioned in multi-tenant cluster</span>
             </div>
             <div className="border border-zinc-900 bg-zinc-900/30 p-5 rounded-2xl">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Monthly Active Orders</p>
-              <h3 className="text-2xl font-bold text-white mt-1.5">14,290</h3>
-              <span className="text-[10px] text-zinc-500 font-medium">Across all restaurant portals</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Total Active Orders</p>
+              <h3 className="text-2xl font-bold text-white mt-1.5">{activeOrdersCount}</h3>
+              <span className="text-[10px] text-zinc-500 font-medium">Synced across all active portals</span>
             </div>
             <div className="border border-zinc-900 bg-zinc-900/30 p-5 rounded-2xl">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">System Platform Load</p>
-              <h3 className="text-2xl font-bold text-white mt-1.5">99.98%</h3>
-              <span className="text-[10px] text-emerald-400 font-medium">All Cloud Functions operational</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">System Platform Status</p>
+              <h3 className="text-2xl font-bold text-emerald-400 mt-1.5">Optimal</h3>
+              <span className="text-[10px] text-emerald-450 font-medium">All telemetry functions running</span>
             </div>
           </div>
 

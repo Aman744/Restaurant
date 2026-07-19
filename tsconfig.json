@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM"],
     "skipLibCheck": true,
     "strict": true,
@@ -11,6 +11,15 @@
     "declarationMap": true,
     "sourceMap": true,
     "verbatimModuleSyntax": true,
-    "ignoreDeprecations": "6.0"
+    "paths": {
+      "firebase/app": ["./node_modules/@firebase/app"],
+      "firebase/auth": ["./node_modules/@firebase/auth"],
+      "firebase/firestore": ["./node_modules/@firebase/firestore"],
+      "firebase/storage": ["./node_modules/@firebase/storage"],
+      "firebase/functions": ["./node_modules/@firebase/functions"],
+      "@restaurant-qr/core": ["./packages/core/src"],
+      "@restaurant-qr/infra": ["./packages/infra/src"],
+      "@restaurant-qr/ui": ["./packages/ui/src"]
+    }
   }
 }

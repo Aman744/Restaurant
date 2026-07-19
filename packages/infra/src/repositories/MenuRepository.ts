@@ -61,7 +61,7 @@ export class MenuRepository implements IMenuRepository {
   async getById(tenantId: string, itemId: string): Promise<MenuItem | null> {
     const docRef = doc(this.db, 'tenants', tenantId, 'menu_items', itemId).withConverter(MenuItemConverter);
     const snap = await getDoc(docRef);
-    return snap.exists() ? snap.data() : null;
+    return snap.exists() ? (snap.data() as MenuItem) : null;
   }
 
   async save(tenantId: string, item: MenuItem): Promise<void> {

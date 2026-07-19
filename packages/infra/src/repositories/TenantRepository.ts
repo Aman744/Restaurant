@@ -77,7 +77,7 @@ export class TenantRepository implements ITenantRepository {
   async getById(id: string): Promise<Tenant | null> {
     const docRef = doc(this.db, 'tenants', id).withConverter(TenantConverter);
     const snap = await getDoc(docRef);
-    return snap.exists() ? snap.data() : null;
+    return snap.exists() ? (snap.data() as Tenant) : null;
   }
 
   async save(tenant: Tenant): Promise<void> {
