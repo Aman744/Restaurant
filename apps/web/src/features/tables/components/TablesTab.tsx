@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Plus, QrCode, Trash2, LayoutGrid, List, Users, CheckCircle2, Clock, Utensils, Copy, ExternalLink } from 'lucide-react';
 import type { Table } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
@@ -19,9 +19,17 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
   const { setAddModalOpen, setViewingQrTable } = useTableStore();
   const { confirm } = useConfirm();
   const toast = useToast();
+
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const safeTables = Array.isArray(tables) ? tables : [];
+
+  // Filter tables by status
+  const filteredTables = useMemo(() => {
+    if (statusFilter === 'all') return safeTables;
+    return safeTables.filter((t) => t.status === statusFilter);
+  }, [safeTables, statusFilter]);
 
   const handleDeleteTable = (table: Table) => {
     confirm({
@@ -86,17 +94,17 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
 
   const columns: Column<Table>[] = [
     {
-      header: 'Table Number',
+      header: 'Table Details',
       accessorKey: 'number',
       sortable: true,
       cell: (t) => (
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 font-bold">
+          <div className="h-9 w-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 font-bold shadow-md">
             <Utensils className="h-4 w-4" />
           </div>
           <div>
-            <span className="font-extrabold text-white text-xs block">{t.number}</span>
-            <span className="text-[10px] text-zinc-500">ID: {t.id}</span>
+            <span className="font-extrabold text-white text-xs block hover:text-emerald-400 transition">{t.number}</span>
+            <span className="text-[10px] text-zinc-500 font-mono">ID: {t.id}</span>
           </div>
         </div>
       )
@@ -106,7 +114,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       accessorKey: 'seatingCapacity',
       sortable: true,
       cell: (t) => (
-        <div className="flex items-center gap-1.5 text-zinc-300 text-xs font-medium">
+        <div className="flex items-center gap-1.5 text-zinc-300 text-xs font-semibold">
           <Users className="h-3.5 w-3.5 text-zinc-500" />
           <span>{t.seatingCapacity || 4} Guests</span>
         </div>
@@ -116,13 +124,13 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       header: 'QR Token ID',
       accessorKey: 'qrToken',
       cell: (t) => (
-        <span className="font-mono text-xs text-emerald-400 font-extrabold tracking-wider bg-emerald-500/10 border border-emerald-500/15 px-2.5 py-1 rounded-xl">
+        <span className="font-mono text-xs text-emerald-400 font-extrabold tracking-wider bg-emerald-500/10 border border-emerald-500/15 px-3 py-1 rounded-xl inline-block">
           {t.qrToken ? `#${t.qrToken.replace(/^qr_token_|^tok_table_/, '').slice(0, 8).toUpperCase()}` : '#ACTIVE'}
         </span>
       )
     },
     {
-      header: 'Status',
+      header: 'Floor Status',
       accessorKey: 'status',
       cell: (t) => getStatusBadge(t.status)
     },
@@ -132,7 +140,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={() => setViewingQrTable(t)}
-            className="flex items-center gap-1 px-2.5 py-1.5 border border-zinc-800 hover:border-emerald-500/30 bg-zinc-900/60 rounded-xl text-zinc-300 hover:text-emerald-400 text-xs font-semibold transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-zinc-800 hover:border-emerald-500/30 bg-zinc-900/80 rounded-xl text-zinc-300 hover:text-emerald-400 text-xs font-semibold transition shadow-sm"
             title="View & Download QR Code"
           >
             <QrCode className="h-3.5 w-3.5 text-emerald-400" />
@@ -140,21 +148,21 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
           </button>
           <button
             onClick={() => handleCopyLink(t)}
-            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-white transition"
+            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/80 rounded-xl text-zinc-400 hover:text-white transition shadow-sm"
             title="Copy Table Order Link"
           >
             <Copy className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => window.open(`${window.location.origin}/customer/table/${tenantId}/${t.id}`, '_blank')}
-            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-emerald-400 transition"
+            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/80 rounded-xl text-zinc-400 hover:text-emerald-400 transition shadow-sm"
             title="Test Table Menu"
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => handleDeleteTable(t)}
-            className="p-2 border border-zinc-800 hover:border-red-500/30 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-red-400 transition"
+            className="p-2 border border-zinc-800 hover:border-red-500/30 bg-zinc-900/80 rounded-xl text-zinc-400 hover:text-red-400 transition shadow-sm"
             title="Delete Table"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -178,7 +186,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
 
         <div className="flex items-center gap-2.5">
           {/* View Mode Toggle Switch */}
-          <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
+          <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-inner">
             <button
               onClick={() => setViewMode('grid')}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
@@ -222,10 +230,30 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
         </div>
       </div>
 
+      {/* Status Filter Bar */}
+      <div className="flex items-center gap-2 border-b border-zinc-850 pb-3 overflow-x-auto">
+        {(['all', 'available', 'occupied', 'reserved', 'cleaning'] as const).map((st) => {
+          const count = st === 'all' ? safeTables.length : safeTables.filter((t) => t.status === st).length;
+          return (
+            <button
+              key={st}
+              onClick={() => setStatusFilter(st)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition border ${
+                statusFilter === st
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-zinc-900/40 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+              }`}
+            >
+              {st} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       {/* Grid View Mode */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {safeTables.map((table) => {
+          {filteredTables.map((table) => {
             const isOccupied = table.status === 'occupied';
 
             return (
@@ -253,7 +281,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
                   </div>
 
                   {/* Visual Floor Layout Graphic */}
-                  <div className="bg-zinc-950/80 border border-zinc-850 p-4 rounded-2xl flex items-center justify-between">
+                  <div className="bg-zinc-950/80 border border-zinc-850 p-4 rounded-2xl flex items-center justify-between shadow-inner">
                     <div className="flex items-center gap-3">
                       <div
                         className={`h-10 w-10 rounded-2xl flex items-center justify-center border font-bold text-xs ${
@@ -297,10 +325,12 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
             );
           })}
 
-          {safeTables.length === 0 && (
+          {filteredTables.length === 0 && (
             <div className="col-span-full border border-zinc-900 bg-zinc-950 py-16 text-center text-zinc-500 rounded-3xl">
               <Utensils className="h-8 w-8 mx-auto text-zinc-700 mb-2" />
-              No dining tables provisioned. Click "Provision Table" to add one.
+              {statusFilter !== 'all'
+                ? `No tables match status "${statusFilter}".`
+                : 'No dining tables provisioned. Click "Provision Table" to add one.'}
             </div>
           )}
         </div>
@@ -309,10 +339,15 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       {/* List View Mode */}
       {viewMode === 'list' && (
         <DataTable
-          data={safeTables}
+          data={filteredTables}
           columns={columns}
           searchPlaceholder="Search tables by number, capacity or status..."
           searchField="number"
+          emptyMessage={
+            statusFilter !== 'all'
+              ? `No tables match status "${statusFilter}".`
+              : 'No dining tables provisioned.'
+          }
         />
       )}
 
