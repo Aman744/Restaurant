@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../../../lib/firebase.js';
+import { db, auth } from '../../../lib/firebase.js';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useToast } from '../../../components/shared/ToastContext';
-import { Save, Store, Receipt, DollarSign, Phone, MapPin, Loader2 } from 'lucide-react';
+import { Save, Store, Receipt, DollarSign, Phone, MapPin, Loader2, KeyRound, Lock } from 'lucide-react';
 
 interface SettingsTabProps {
   tenantId: string;
@@ -28,6 +29,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
   const [receiptFooter, setReceiptFooter] = useState('Thank you for dining with us! Please visit again.');
 
   const [isSaving, setIsSaving] = useState(false);
+
+  // Password Change States
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Fetch initial settings from Firestore on mount
   useEffect(() => {
@@ -110,6 +117,50 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      if (isMockMode) {
+        toast.success('Account password updated in sandbox!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        const user = auth.currentUser;
+        if (!user || !user.email) {
+          toast.error('No active logged-in user.');
+          return;
+        }
+
+        if (currentPassword) {
+          const credential = EmailAuthProvider.credential(user.email, currentPassword);
+          await reauthenticateWithCredential(user, credential);
+        }
+
+        await updatePassword(user, newPassword);
+        toast.success('Account password updated successfully!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } catch (err: any) {
+      toast.error(`Failed to update password: ${err.message}`);
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-20 flex flex-col items-center justify-center space-y-3 text-zinc-500">
@@ -124,7 +175,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
       {/* Header */}
       <div>
         <h3 className="text-base font-extrabold text-white">Restaurant Settings & Configuration</h3>
-        <p className="text-xs text-zinc-500 mt-1">Configure business profile, GST tax rates, thermal receipt branding, and POS settings</p>
+        <p className="text-xs text-zinc-500 mt-1">Configure business profile, GST tax rates, thermal receipt branding, and account security</p>
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">
@@ -227,7 +278,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
           </div>
         </div>
 
-        {/* Section 3: Receipt Branding & Thermal Printing */}
+        {/* Section 3: Thermal Receipt Customization */}
         <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
           <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
             <Receipt className="h-4 w-4 text-emerald-400" />
@@ -259,15 +310,80 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
           </div>
         </div>
 
-        {/* Submit Save Button */}
-        <div className="flex justify-end pt-2">
+        {/* Save General Settings Button */}
+        <div className="flex justify-end pt-1">
           <button
             type="submit"
             disabled={isSaving}
             className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/10 transition"
           >
             <Save className="h-4 w-4" />
-            {isSaving ? 'Saving Changes...' : 'Save Restaurant Settings'}
+            {isSaving ? 'Saving Changes...' : 'Save General Settings'}
+          </button>
+        </div>
+      </form>
+
+      {/* Section 4: Security & Change Password Form */}
+      <form onSubmit={handleChangePassword} className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4 pt-4">
+        <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+          <KeyRound className="h-4 w-4 text-emerald-400" />
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Account Security & Change Password</h4>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+              <Lock className="h-3 w-3 text-zinc-500" />
+              Current Password
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+              <Lock className="h-3 w-3 text-zinc-500" />
+              New Password
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+              placeholder="Min 6 characters"
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+              <Lock className="h-3 w-3 text-zinc-500" />
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+              placeholder="Repeat new password"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            disabled={isChangingPassword}
+            className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold text-xs rounded-xl transition shadow-md"
+          >
+            <KeyRound className="h-4 w-4 text-emerald-400" />
+            {isChangingPassword ? 'Updating Password...' : 'Update Account Password'}
           </button>
         </div>
       </form>
