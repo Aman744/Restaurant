@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase.js';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { Order, OrderStatus } from '@restaurant-qr/core';
 
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
@@ -60,5 +60,23 @@ export class OrderService {
       'payment.amountPaid': amount,
       updatedAt: new Date()
     });
+  }
+
+  /**
+   * Deletes an order (Admin role restricted)
+   */
+  static async deleteOrder(tenantId: string, orderId: string, isMockMode: boolean): Promise<void> {
+    if (isMockMode) {
+      const stored = localStorage.getItem(MOCK_ORDERS_KEY);
+      if (stored) {
+        const parsed: Order[] = JSON.parse(stored);
+        const updated = parsed.filter((o) => o.id !== orderId);
+        localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
+      }
+      return;
+    }
+
+    const docRef = doc(db, 'tenants', tenantId, 'orders', orderId);
+    await deleteDoc(docRef);
   }
 }

@@ -1,9 +1,12 @@
 import React from 'react';
+import { Trash2 } from 'lucide-react';
 import type { Order, OrderStatus } from '@restaurant-qr/core';
 import { OrderService } from '../../../services/OrderService';
 import { ReceiptPrinter } from '../../../utils/ReceiptPrinter';
 import { useToast } from '../../../components/shared/ToastContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
+import { useUserProfile } from '../../../features/auth/context/UserContext';
+import { useConfirm } from '../../../components/shared/ConfirmContext';
 
 interface OrdersTabProps {
   tenantId: string;
@@ -19,7 +22,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
   currencySymbol = '₹'
 }) => {
   const { ordersFilter, setOrdersFilter } = useOrderStore();
+  const { profile } = useUserProfile();
+  const { confirm } = useConfirm();
   const toast = useToast();
+
+  const isAdmin = profile?.role === 'restaurant-admin' || profile?.role === 'super-admin';
 
   const safeOrders = Array.isArray(orders) ? orders : [];
 
@@ -40,6 +47,22 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
     } catch (e: any) {
       toast.error(`Status update failed: ${e.message}`);
     }
+  };
+
+  const handleDeleteOrder = (order: Order) => {
+    confirm({
+      title: 'Delete Order?',
+      message: `Are you sure you want to permanently delete Order #${order.id}? This action cannot be undone.`,
+      confirmText: 'Delete Order',
+      onConfirm: async () => {
+        try {
+          await OrderService.deleteOrder(tenantId, order.id, isMockMode);
+          toast.success(`Deleted Order #${order.id}.`);
+        } catch (err: any) {
+          toast.error(`Failed to delete order: ${err.message}`);
+        }
+      }
+    });
   };
 
   const handlePrintReceipt = (order: Order) => {
@@ -75,9 +98,20 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                   <h4 className="font-bold text-white text-base">{order.tableNumber || `Table ${order.tableId}`}</h4>
                   <p className="text-[10px] text-zinc-500">Order ID: #{order.id}</p>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-zinc-800 text-zinc-300">
-                  {order.status || 'pending'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-zinc-800 text-zinc-300">
+                    {order.status || 'pending'}
+                  </span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteOrder(order)}
+                      className="p-1.5 border border-zinc-800 hover:border-red-500/30 text-zinc-400 hover:text-red-400 rounded-lg transition"
+                      title="Delete Order (Admin Only)"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 space-y-2 border-y border-zinc-800/80 py-3">
