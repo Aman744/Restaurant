@@ -323,7 +323,7 @@ export const CustomerMenu: React.FC = () => {
               {tableName}
             </span>
             <h1 className="text-xl font-extrabold text-white tracking-tight mt-1.5">{restaurantName}</h1>
-            <p className="text-xs text-zinc-500">Scan verified • Multi-Tenant QR Menu</p>
+            <p className="text-xs text-zinc-500">Scan verified • Contactless Table Ordering</p>
           </div>
           <div className="h-10 w-10 border border-zinc-800 bg-zinc-900/40 rounded-xl flex items-center justify-center text-zinc-300">
             <Utensils className="h-5 w-5 text-emerald-400" />
