@@ -220,9 +220,11 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
                         <Utensils className="h-5 w-5" />
                       </div>
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-zinc-500 block">QR Token</span>
-                        <span className="font-mono text-xs text-zinc-300 font-semibold">
-                          {table.qrToken ? table.qrToken.slice(0, 10) + '...' : 'tbl_token'}
+                        <span className="text-[10px] uppercase font-bold text-zinc-500 block">QR Token ID</span>
+                        <span className="font-mono text-xs text-emerald-400 font-extrabold tracking-wider">
+                          {table.qrToken
+                            ? `#${table.qrToken.replace(/^qr_token_|^tok_table_/, '').slice(0, 8).toUpperCase()}`
+                            : '#ACTIVE'}
                         </span>
                       </div>
                     </div>
