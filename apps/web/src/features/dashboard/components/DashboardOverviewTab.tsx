@@ -42,12 +42,24 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
     }
   };
 
-  const getTimeAgo = (dateStr?: Date | string) => {
-    if (!dateStr) return 'Just now';
-    const diffMins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    return `${Math.floor(diffMins / 60)}h ago`;
+  const parseDate = (val: any): Date => {
+    if (!val) return new Date();
+    if (val instanceof Date) return val;
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+    const parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
+  const getTimeAgo = (dateVal?: any) => {
+    const d = parseDate(dateVal);
+    const timeString = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const diffMins = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (diffMins < 0 || diffMins < 1) return `Just now • ${timeString}`;
+    if (diffMins < 60) return `${diffMins}m ago • ${timeString}`;
+    const hours = Math.floor(diffMins / 60);
+    if (hours < 24) return `${hours}h ago • ${timeString}`;
+    return `${d.toLocaleDateString()} • ${timeString}`;
   };
 
   return (

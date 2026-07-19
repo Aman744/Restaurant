@@ -96,7 +96,14 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
               <div className="flex justify-between items-start">
                 <div>
                   <h4 className="font-bold text-white text-base">{order.tableNumber || `Table ${order.tableId}`}</h4>
-                  <p className="text-[10px] text-zinc-500">Order ID: #{order.id}</p>
+                  <p className="text-[10px] text-zinc-500">
+                    Order ID: #{order.id} • {(() => {
+                      const val = order.createdAt as any;
+                      if (!val) return 'Just now';
+                      const d = val instanceof Date ? val : typeof val.toDate === 'function' ? val.toDate() : typeof val.seconds === 'number' ? new Date(val.seconds * 1000) : new Date(val);
+                      return isNaN(d.getTime()) ? 'Just now' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    })()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-zinc-800 text-zinc-300">
