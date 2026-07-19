@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, TrendingUp } from 'lucide-react';
+import { IndianRupee, TrendingUp } from 'lucide-react';
 
 interface RevenueCardProps {
   totalRevenue: number;
@@ -11,8 +11,8 @@ export const RevenueCard: React.FC<RevenueCardProps> = ({ totalRevenue, currency
     <div className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl space-y-3">
       <div className="flex justify-between items-start">
         <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Total Revenue</span>
-        <div className="p-2 bg-emerald-500/10 border border-emerald-500/15 text-emerald-400 rounded-xl">
-          <DollarSign className="h-4 w-4" />
+        <div className="p-2 bg-emerald-500/10 border border-emerald-500/15 text-emerald-400 rounded-xl flex items-center justify-center">
+          <IndianRupee className="h-4 w-4" />
         </div>
       </div>
       <div className="flex items-baseline justify-between">

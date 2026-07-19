@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, TrendingUp, DollarSign, Receipt, ShoppingBag, CreditCard, Award } from 'lucide-react';
+import { Download, TrendingUp, IndianRupee, Receipt, ShoppingBag, CreditCard, Award } from 'lucide-react';
 import type { Order } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 
@@ -124,8 +124,8 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ orders = [], currencySym
         <div className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl space-y-3">
           <div className="flex justify-between items-start">
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Gross Sales</span>
-            <div className="p-2 bg-emerald-500/10 border border-emerald-500/15 text-emerald-400 rounded-xl">
-              <DollarSign className="h-4 w-4" />
+            <div className="p-2 bg-emerald-500/10 border border-emerald-500/15 text-emerald-400 rounded-xl flex items-center justify-center">
+              <IndianRupee className="h-4 w-4" />
             </div>
           </div>
           <h4 className="text-2xl font-black text-white">
