@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { useUserProfile } from '../../features/auth/context/UserContext';
-import { LogOut, Menu, User, Bell, X } from 'lucide-react';
+import { LogOut, Menu, User, Bell, X, CheckCheck, Info } from 'lucide-react';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 
 interface SidebarItem {
@@ -17,14 +17,33 @@ interface DashboardLayoutProps {
   sidebarItems: SidebarItem[];
 }
 
+interface SystemNotification {
+  id: string;
+  title: string;
+  time: string;
+  read: boolean;
+  type: 'order' | 'system' | 'table';
+}
+
+const initialNotifications: SystemNotification[] = [
+  { id: 'n1', title: 'New customer order placed for Table 2', time: '2 mins ago', read: false, type: 'order' },
+  { id: 'n2', title: 'Table 4 requested cashier bill print', time: '10 mins ago', read: false, type: 'table' },
+  { id: 'n3', title: 'Menu catalog updated & synced', time: '1 hour ago', read: true, type: 'system' }
+];
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title, sidebarItems }) => {
   const { logout } = useAuth();
   const { profile } = useUserProfile();
   const { tenant } = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
-  const [logoError, setLogoError] = React.useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+
+  const [logoError, setLogoError] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<SystemNotification[]>(initialNotifications);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const isImpersonating = !!localStorage.getItem('impersonate_role');
 
@@ -40,6 +59,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     navigate('/');
   };
 
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
   return (
     <div className="flex h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
       {/* Sidebar */}
@@ -50,7 +73,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
             {tenant?.logoUrl && !logoError ? (
               <img
                 src={tenant.logoUrl}
-                alt={tenant.name || "Logo"}
+                alt={tenant.name || 'Logo'}
                 className="h-10 w-auto max-w-[200px] object-contain rounded-lg"
                 onError={() => setLogoError(true)}
               />
@@ -113,18 +136,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header */}
-        <header className="h-16 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between">
+        <header className="h-16 border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between relative z-40">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden text-zinc-400 hover:text-zinc-200"
-            >
+            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-zinc-400 hover:text-zinc-200">
               <Menu className="h-6 w-6" />
             </button>
             <h1 className="text-lg font-bold tracking-tight text-white">{title}</h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 relative">
             {isImpersonating && (
               <button
                 onClick={handleExitImpersonation}
@@ -134,10 +154,85 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 Exit Impersonate
               </button>
             )}
-            <button className="relative p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition">
-              <Bell className="h-4.5 w-4.5" />
-              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-emerald-500 rounded-full" />
-            </button>
+
+            {/* Notification Bell Trigger */}
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen((prev) => !prev)}
+                className={`relative p-2.5 rounded-xl border transition ${
+                  notificationsOpen
+                    ? 'bg-zinc-800 border-zinc-700 text-white'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+                title="Notifications"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 text-black font-black text-[9px] rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Popover Panel */}
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 border border-zinc-800 bg-zinc-950 p-4 shadow-2xl rounded-2xl text-white space-y-3 z-50">
+                  <div className="flex justify-between items-center border-b border-zinc-850 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-emerald-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider">Notifications</h4>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <CheckCheck className="h-3 w-3" />
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-zinc-850 max-h-72 overflow-y-auto">
+                    {notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() =>
+                          setNotifications((prev) =>
+                            prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
+                          )
+                        }
+                        className={`py-3 px-2 flex items-start gap-3 rounded-xl transition cursor-pointer hover:bg-zinc-900/60 ${
+                          !n.read ? 'bg-zinc-900/40' : ''
+                        }`}
+                      >
+                        <div
+                          className={`p-2 rounded-lg shrink-0 ${
+                            !n.read
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-zinc-800 text-zinc-500'
+                          }`}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 space-y-0.5">
+                          <p className={`text-xs ${!n.read ? 'font-bold text-white' : 'text-zinc-400'}`}>
+                            {n.title}
+                          </p>
+                          <p className="text-[10px] text-zinc-500">{n.time}</p>
+                        </div>
+                        {!n.read && <span className="h-2 w-2 rounded-full bg-emerald-500 mt-1 shrink-0" />}
+                      </div>
+                    ))}
+
+                    {notifications.length === 0 && (
+                      <p className="py-6 text-center text-zinc-500 text-xs">No notifications available.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="h-8 w-px bg-zinc-900 hidden sm:block" />
             <div className="flex items-center gap-2.5 hidden sm:flex">
               <div className="text-right">
@@ -150,20 +245,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         </header>
 
         {/* Dashboard Viewport */}
-        <main className="flex-1 overflow-y-auto bg-zinc-950 p-4 sm:p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto bg-zinc-950 p-4 sm:p-6">{children}</main>
       </div>
 
       {/* Mobile Drawer Sidebar Overlay */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          
+
           {/* Drawer Content */}
           <div className="relative flex-1 flex flex-col max-w-xs w-full bg-zinc-950 border-r border-zinc-900 shadow-2xl p-6 transition-transform duration-300">
             <div className="flex justify-between items-center mb-6">
@@ -172,7 +265,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 {tenant?.logoUrl && !logoError ? (
                   <img
                     src={tenant.logoUrl}
-                    alt={tenant.name || "Logo"}
+                    alt={tenant.name || 'Logo'}
                     className="h-9 w-auto max-w-[150px] object-contain rounded-lg"
                     onError={() => setLogoError(true)}
                   />
@@ -188,7 +281,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 )}
               </div>
               {/* Close Button */}
-              <button 
+              <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-1.5 text-zinc-550 hover:text-white rounded-lg transition"
               >
