@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { useUserProfile } from '../../features/auth/context/UserContext';
-import { LogOut, Menu, User, X } from 'lucide-react';
+import { LogOut, Menu, User, Bell, X, CheckCheck, Trash2, ShoppingBag, Utensils, Sparkles } from 'lucide-react';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 
 interface SidebarItem {
@@ -17,6 +18,20 @@ interface DashboardLayoutProps {
   sidebarItems: SidebarItem[];
 }
 
+interface SystemNotification {
+  id: string;
+  title: string;
+  time: string;
+  read: boolean;
+  type: 'order' | 'system' | 'table';
+}
+
+const initialNotifications: SystemNotification[] = [
+  { id: 'n1', title: 'New customer order placed for Table 2', time: '2 mins ago', read: false, type: 'order' },
+  { id: 'n2', title: 'Table 4 requested cashier bill print', time: '10 mins ago', read: false, type: 'table' },
+  { id: 'n3', title: 'Menu catalog updated & synced', time: '1 hour ago', read: true, type: 'system' }
+];
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title, sidebarItems }) => {
   const { logout } = useAuth();
   const { profile } = useUserProfile();
@@ -26,6 +41,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
   const [logoError, setLogoError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<SystemNotification[]>(initialNotifications);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const isImpersonating = !!localStorage.getItem('impersonate_role');
 
@@ -39,6 +58,41 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   const handleLogout = async () => {
     await logout();
     navigate('/');
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleClearAllNotifications = () => {
+    setNotifications([]);
+  };
+
+  const handleRemoveSingleNotification = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setNotifications((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'order':
+        return <ShoppingBag className="h-3.5 w-3.5 text-emerald-400" />;
+      case 'table':
+        return <Utensils className="h-3.5 w-3.5 text-amber-400" />;
+      default:
+        return <Sparkles className="h-3.5 w-3.5 text-sky-400" />;
+    }
+  };
+
+  const getNotificationIconBg = (type: string) => {
+    switch (type) {
+      case 'order':
+        return 'bg-emerald-500/10 border-emerald-500/20';
+      case 'table':
+        return 'bg-amber-500/10 border-amber-500/20';
+      default:
+        return 'bg-sky-500/10 border-sky-500/20';
+    }
   };
 
   return (
@@ -122,7 +176,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
             <h1 className="text-lg font-bold tracking-tight text-white">{title}</h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 relative">
             {isImpersonating && (
               <button
                 onClick={handleExitImpersonation}
@@ -133,7 +187,122 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
               </button>
             )}
 
-            <div className="flex items-center gap-2.5">
+            {/* Notification Bell Trigger */}
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen((prev) => !prev)}
+                className={`relative p-2.5 rounded-xl border transition ${
+                  notificationsOpen
+                    ? 'bg-zinc-800 border-zinc-700 text-white'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900'
+                }`}
+                title="Notifications"
+              >
+                <Bell className="h-4.5 w-4.5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 text-black font-black text-[9px] rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Popover Panel with Backdrop Dismissal */}
+              <AnimatePresence>
+                {notificationsOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setNotificationsOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-3 w-80 sm:w-96 border border-zinc-800 bg-zinc-950/95 backdrop-blur-2xl p-4 shadow-2xl shadow-emerald-500/5 rounded-3xl text-white space-y-3 z-50"
+                    >
+                      {/* Popover Header */}
+                      <div className="flex justify-between items-center border-b border-zinc-850 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Bell className="h-4 w-4 text-emerald-400" />
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider">Live Notifications</h4>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={handleMarkAllRead}
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold transition"
+                              title="Mark all as read"
+                            >
+                              <CheckCheck className="h-3.5 w-3.5" />
+                              Mark read
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={handleClearAllNotifications}
+                              className="text-[10px] text-zinc-400 hover:text-red-400 flex items-center gap-1 font-bold transition ml-1"
+                              title="Clear all notifications"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-zinc-400 hover:text-red-400" />
+                              Clear All
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notifications Stream */}
+                      <div className="divide-y divide-zinc-850/80 max-h-80 overflow-y-auto pr-1">
+                        {notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() =>
+                              setNotifications((prev) =>
+                                prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
+                              )
+                            }
+                            className={`py-3 px-3 flex items-start gap-3 rounded-2xl transition cursor-pointer hover:bg-zinc-900/80 group ${
+                              !n.read ? 'bg-zinc-900/50 border border-zinc-850/60' : ''
+                            }`}
+                          >
+                            <div className={`p-2 rounded-xl border shrink-0 ${getNotificationIconBg(n.type)}`}>
+                              {getNotificationIcon(n.type)}
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className={`text-xs leading-snug ${!n.read ? 'font-bold text-white' : 'text-zinc-400'}`}>
+                                {n.title}
+                              </p>
+                              <p className="text-[10px] text-zinc-500 font-mono">{n.time}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {!n.read && <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />}
+                              <button
+                                onClick={(e) => handleRemoveSingleNotification(e, n.id)}
+                                className="p-1 opacity-0 group-hover:opacity-100 hover:text-red-400 text-zinc-500 rounded-md transition"
+                                title="Remove notification"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+
+                        {notifications.length === 0 && (
+                          <div className="py-10 text-center text-zinc-500 text-xs space-y-2">
+                            <Sparkles className="h-7 w-7 mx-auto text-zinc-700 mb-1" />
+                            <p className="font-semibold text-zinc-400">All notifications cleared!</p>
+                            <p className="text-[10px] text-zinc-600">You are all caught up.</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="h-8 w-px bg-zinc-900 hidden sm:block" />
+            <div className="flex items-center gap-2.5 hidden sm:flex">
               <div className="text-right">
                 <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded-full">
                   {profile?.role?.replace('-', ' ') || ''}
