@@ -25,12 +25,16 @@ import {
   Trash2
 } from 'lucide-react';
 import type { Tenant } from '@restaurant-qr/core';
+import { useToast } from '../../components/shared/ToastContext';
 
 const MOCK_TENANTS_KEY = 'restaurant_qr_mock_tenants_db';
 
 export const SuperAdminDashboard: React.FC = () => {
   const location = useLocation();
   const { isMockMode } = useAuth();
+  const toast = useToast();
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<{ id: string; name: string } | null>(null);
   
   const sidebarItems = [
     { name: 'Dashboard', path: '/super-admin', icon: LayoutDashboard },
@@ -194,6 +198,7 @@ export const SuperAdminDashboard: React.FC = () => {
         localStorage.setItem(MOCK_TENANTS_KEY, JSON.stringify(updated));
       }
 
+      toast.success(`Tenant "${newTenantName}" provisioned successfully.`);
       setNewTenantName('');
       setNewTenantDomain('');
       setAdminEmail('');
@@ -201,26 +206,34 @@ export const SuperAdminDashboard: React.FC = () => {
       setAdminName('');
       setShowAddModal(false);
     } catch (err: any) {
-      alert(`Failed to provision tenant: ${err.message}`);
+      toast.error(`Failed to provision tenant: ${err.message}`);
     }
   };
 
-  const handleDeleteTenant = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this tenant? All data namespaces will be permanently deleted.')) {
-      try {
-        await tenantService.deleteTenant(id);
+  const requestDeleteTenant = (id: string, name: string) => {
+    setTenantToDelete({ id, name });
+    setShowDeleteConfirmModal(true);
+  };
 
-        if (isMockMode) {
-          const updated = tenants.filter((t) => t.id !== id);
-          setTenants(updated);
-          localStorage.setItem(MOCK_TENANTS_KEY, JSON.stringify(updated));
-        } else {
-          // If in Firebase mode, delete document directly
-          await deleteDoc(doc(db, 'tenants', id));
-        }
-      } catch (err: any) {
-        alert(`Failed to delete tenant: ${err.message}`);
+  const confirmDeleteTenant = async () => {
+    if (!tenantToDelete) return;
+    const { id, name } = tenantToDelete;
+    try {
+      await tenantService.deleteTenant(id);
+
+      if (isMockMode) {
+        const updated = tenants.filter((t) => t.id !== id);
+        setTenants(updated);
+        localStorage.setItem(MOCK_TENANTS_KEY, JSON.stringify(updated));
+      } else {
+        await deleteDoc(doc(db, 'tenants', id));
       }
+      toast.success(`Tenant "${name}" deleted successfully.`);
+    } catch (err: any) {
+      toast.error(`Failed to delete tenant: ${err.message}`);
+    } finally {
+      setShowDeleteConfirmModal(false);
+      setTenantToDelete(null);
     }
   };
 
@@ -247,8 +260,9 @@ export const SuperAdminDashboard: React.FC = () => {
           'subscription.status': nextStatus
         });
       }
+      toast.success(`Tenant status updated to "${nextStatus}".`);
     } catch (err: any) {
-      alert(`Failed to update status: ${err.message}`);
+      toast.error(`Failed to update status: ${err.message}`);
     }
   };
 
@@ -288,8 +302,9 @@ export const SuperAdminDashboard: React.FC = () => {
           'subscription.limits': limits
         });
       }
+      toast.success(`Subscription plan successfully updated to ${planId.toUpperCase()}.`);
     } catch (err: any) {
-      alert(`Failed to change plan: ${err.message}`);
+      toast.error(`Failed to change plan: ${err.message}`);
     }
   };
 
@@ -310,8 +325,9 @@ export const SuperAdminDashboard: React.FC = () => {
             domain: formattedDomain
           });
         }
+        toast.success(formattedDomain ? `Custom domain mapped to: ${formattedDomain}` : 'Custom domain mapping removed.');
       } catch (err: any) {
-        alert(`Failed to update domain: ${err.message}`);
+        toast.error(`Failed to update domain: ${err.message}`);
       }
     }
   };
@@ -332,8 +348,8 @@ export const SuperAdminDashboard: React.FC = () => {
     localStorage.setItem('impersonate_role', 'restaurant-admin');
     localStorage.setItem('impersonate_tenantId', targetTenantId);
     localStorage.setItem('impersonate_tenantName', tenantName);
-    alert(`Entering Impersonation mode for restaurant: "${tenantName}" as Restaurant Admin.`);
-    window.location.href = '/admin';
+    toast.success(`Entering Impersonation mode for restaurant: "${tenantName}" as Restaurant Admin.`);
+    setTimeout(() => { window.location.href = '/admin'; }, 1000);
   };
 
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
@@ -342,30 +358,30 @@ export const SuperAdminDashboard: React.FC = () => {
       if (isMockMode) {
         localStorage.setItem('restaurant_qr_system_flags', JSON.stringify(featureFlags));
         localStorage.setItem('restaurant_qr_system_whitelabel', JSON.stringify(whiteLabelConfig));
-        alert('Platform settings saved successfully in Sandbox!');
-        setTimeout(() => { window.location.reload(); }, 500);
+        toast.success('Platform settings saved successfully in Sandbox!');
+        setTimeout(() => { window.location.reload(); }, 1000);
       } else {
         await setDoc(doc(db, 'system_settings', 'general'), {
           featureFlags,
           whiteLabelConfig,
           updatedAt: new Date()
         }, { merge: true });
-        alert('Platform settings saved successfully in Firebase!');
-        setTimeout(() => { window.location.reload(); }, 500);
+        toast.success('Platform settings saved successfully in Firebase!');
+        setTimeout(() => { window.location.reload(); }, 1000);
       }
     } catch (err: any) {
-      alert(`Failed to save settings: ${err.message}`);
+      toast.error(`Failed to save settings: ${err.message}`);
     }
   };
 
   const handleChangeSuperAdminPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
-      alert('Please fill out all password fields.');
+      toast.warning('Please fill out all password fields.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert('New passwords do not match.');
+      toast.warning('New passwords do not match.');
       return;
     }
     try {
@@ -383,7 +399,7 @@ export const SuperAdminDashboard: React.FC = () => {
             }
             userObj.passwordHash = hashedNew;
             localStorage.setItem('restaurant_qr_mock_credentials_db', JSON.stringify(credentialsDb));
-            alert('Super Admin password updated successfully in Sandbox!');
+            toast.success('Super Admin password updated successfully in Sandbox!');
           } else {
             throw new Error('Super Admin mock account credentials not found.');
           }
@@ -395,13 +411,13 @@ export const SuperAdminDashboard: React.FC = () => {
         const credential = EmailAuthProvider.credential(email, currentPassword);
         await reauthenticateWithCredential(authUser, credential);
         await updatePassword(authUser, newPassword);
-        alert('Super Admin password updated successfully!');
+        toast.success('Super Admin password updated successfully!');
       }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      alert(`Failed to change password: ${err.message}`);
+      toast.error(`Failed to change password: ${err.message}`);
     }
   };
 
@@ -626,8 +642,8 @@ export const SuperAdminDashboard: React.FC = () => {
                           >
                             <Sliders className="h-3.5 w-3.5" />
                           </button>
-                          <button
-                            onClick={() => handleDeleteTenant(t.id)}
+                           <button
+                            onClick={() => requestDeleteTenant(t.id, t.name)}
                             className="p-2 border border-zinc-800 hover:border-red-500/30 text-zinc-500 hover:text-red-400 hover:bg-red-500/5 transition rounded-xl"
                             title="Delete Tenant"
                           >
@@ -982,6 +998,41 @@ export const SuperAdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && tenantToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-sm border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-2xl text-white"
+          >
+            <h3 className="text-lg font-bold text-white mb-2">Delete Tenant?</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+              Are you sure you want to delete <span className="font-bold text-white">"{tenantToDelete.name}"</span>? All data namespaces, orders, menus, and staff details will be permanently deleted. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setTenantToDelete(null);
+                }}
+                className="px-4 py-2.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteTenant}
+                className="px-4 py-2.5 bg-red-650 hover:bg-red-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-500/10"
+              >
+                Permanently Delete
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

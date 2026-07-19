@@ -6,6 +6,7 @@ import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { MenuItemConverter } from '@restaurant-qr/infra';
 import type { MenuItem, Order, OrderItem, OrderStatus, PaymentStatus } from '@restaurant-qr/core';
 import confetti from 'canvas-confetti';
+import { useToast } from '../../components/shared/ToastContext';
 import {
   Utensils,
   Plus,
@@ -28,6 +29,7 @@ interface CartItem {
 export const CustomerMenu: React.FC = () => {
   const { tenantId = 'tenant_dev_123', tableId = 'table_01' } = useParams<{ tenantId: string; tableId: string }>();
   const { isMockMode } = useAuth();
+  const toast = useToast();
 
   // Database / state values
   const [restaurantName, setRestaurantName] = useState('Gourmet Restaurant');
@@ -293,7 +295,7 @@ export const CustomerMenu: React.FC = () => {
       setCart([]);
       setIsCartOpen(false);
     } catch (err: any) {
-      alert(`Order placement failed: ${err.message}`);
+      toast.error(`Order placement failed: ${err.message}`);
     }
   };
 

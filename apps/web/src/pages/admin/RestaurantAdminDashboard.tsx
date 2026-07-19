@@ -305,7 +305,7 @@ export const RestaurantAdminDashboard: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(blobUrl);
     } catch (err: any) {
-      alert(`Failed to download QR code: ${err.message}`);
+      showToast(`Failed to download QR code: ${err.message}`, 'error');
     }
   };
 
@@ -405,9 +405,9 @@ export const RestaurantAdminDashboard: React.FC = () => {
           await batch.commit();
         }
 
-        alert(`Successfully imported ${parsedItems.length} menu items from CSV!`);
+        showToast(`Successfully imported ${parsedItems.length} menu items from CSV!`, 'success');
       } catch (err: any) {
-        alert(`CSV Import Failed: ${err.message}`);
+        showToast(`CSV Import Failed: ${err.message}`, 'error');
       }
     };
 
@@ -418,7 +418,7 @@ export const RestaurantAdminDashboard: React.FC = () => {
 
   const handleCSVExport = () => {
     if (menuItems.length === 0) {
-      alert('No menu items available to export.');
+      showToast('No menu items available to export.', 'info');
       return;
     }
 
