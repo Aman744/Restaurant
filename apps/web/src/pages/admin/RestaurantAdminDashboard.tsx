@@ -77,29 +77,45 @@ export const RestaurantAdminDashboard: React.FC = () => {
       };
     } else {
       const unsubs = [
-        onSnapshot(collection(db, 'tenants', tenantId, 'orders'), (snap) => {
-          const items: Order[] = [];
-          snap.forEach((d) => items.push({ id: d.id, ...d.data() } as Order));
-          if (active) setOrders(items);
-        }),
-        onSnapshot(collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter), (snap) => {
-          const items: MenuItem[] = [];
-          snap.forEach((d) => items.push(d.data() as MenuItem));
-          if (active) setMenuItems(items);
-        }),
-        onSnapshot(collection(db, 'tenants', tenantId, 'tables'), (snap) => {
-          const items: RestaurantTable[] = [];
-          snap.forEach((d) => items.push({ id: d.id, ...d.data() } as RestaurantTable));
-          if (active) setTables(items);
-        }),
-        onSnapshot(collection(db, 'tenants', tenantId, 'staff'), (snap) => {
-          const items: UserProfile[] = [];
-          snap.forEach((d) => items.push({ uid: d.id, ...d.data() } as UserProfile));
-          if (active) setStaff(items);
-        })
+        onSnapshot(
+          collection(db, 'tenants', tenantId, 'orders'),
+          (snap) => {
+            const items: Order[] = [];
+            snap.forEach((d) => items.push({ id: d.id, ...d.data() } as Order));
+            if (active) setOrders(items);
+          },
+          (err) => console.warn('Orders listener notice:', err.message)
+        ),
+        onSnapshot(
+          collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter),
+          (snap) => {
+            const items: MenuItem[] = [];
+            snap.forEach((d) => items.push(d.data() as MenuItem));
+            if (active) setMenuItems(items);
+          },
+          (err) => console.warn('Menu listener notice:', err.message)
+        ),
+        onSnapshot(
+          collection(db, 'tenants', tenantId, 'tables'),
+          (snap) => {
+            const items: RestaurantTable[] = [];
+            snap.forEach((d) => items.push({ id: d.id, ...d.data() } as RestaurantTable));
+            if (active) setTables(items);
+          },
+          (err) => console.warn('Tables listener notice:', err.message)
+        ),
+        onSnapshot(
+          collection(db, 'tenants', tenantId, 'staff'),
+          (snap) => {
+            const items: UserProfile[] = [];
+            snap.forEach((d) => items.push({ uid: d.id, ...d.data() } as UserProfile));
+            if (active) setStaff(items);
+          },
+          (err) => console.warn('Staff listener notice:', err.message)
+        )
       ];
 
-      setLoading(false);
+      if (active) setLoading(false);
       return () => {
         active = false;
         unsubs.forEach((unsub) => unsub());
