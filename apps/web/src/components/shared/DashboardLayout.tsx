@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { useUserProfile } from '../../features/auth/context/UserContext';
-import { LogOut, Menu, User, Bell, X, CheckCheck, Info } from 'lucide-react';
+import { LogOut, Menu, User, Bell, X, CheckCheck, ShoppingBag, Utensils, Sparkles } from 'lucide-react';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 
 interface SidebarItem {
@@ -61,6 +62,28 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'order':
+        return <ShoppingBag className="h-3.5 w-3.5 text-emerald-400" />;
+      case 'table':
+        return <Utensils className="h-3.5 w-3.5 text-amber-400" />;
+      default:
+        return <Sparkles className="h-3.5 w-3.5 text-sky-400" />;
+    }
+  };
+
+  const getNotificationIconBg = (type: string) => {
+    switch (type) {
+      case 'order':
+        return 'bg-emerald-500/10 border-emerald-500/20';
+      case 'table':
+        return 'bg-amber-500/10 border-amber-500/20';
+      default:
+        return 'bg-sky-500/10 border-sky-500/20';
+    }
   };
 
   return (
@@ -168,69 +191,80 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
               >
                 <Bell className="h-4.5 w-4.5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 text-black font-black text-[9px] rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-emerald-500 text-black font-black text-[9px] rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 animate-pulse">
                     {unreadCount}
                   </span>
                 )}
               </button>
 
-              {/* Notification Popover Panel */}
-              {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 border border-zinc-800 bg-zinc-950 p-4 shadow-2xl rounded-2xl text-white space-y-3 z-50">
-                  <div className="flex justify-between items-center border-b border-zinc-850 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Bell className="h-4 w-4 text-emerald-400" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider">Notifications</h4>
-                    </div>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold"
-                      >
-                        <CheckCheck className="h-3 w-3" />
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="divide-y divide-zinc-850 max-h-72 overflow-y-auto">
-                    {notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        onClick={() =>
-                          setNotifications((prev) =>
-                            prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
-                          )
-                        }
-                        className={`py-3 px-2 flex items-start gap-3 rounded-xl transition cursor-pointer hover:bg-zinc-900/60 ${
-                          !n.read ? 'bg-zinc-900/40' : ''
-                        }`}
-                      >
-                        <div
-                          className={`p-2 rounded-lg shrink-0 ${
-                            !n.read
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-zinc-800 text-zinc-500'
-                          }`}
-                        >
-                          <Info className="h-3.5 w-3.5" />
+              {/* Notification Popover Panel with Backdrop Dismissal */}
+              <AnimatePresence>
+                {notificationsOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setNotificationsOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-3 w-80 sm:w-96 border border-zinc-800 bg-zinc-950/95 backdrop-blur-2xl p-4 shadow-2xl shadow-emerald-500/5 rounded-3xl text-white space-y-3 z-50"
+                    >
+                      <div className="flex justify-between items-center border-b border-zinc-850 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Bell className="h-4 w-4 text-emerald-400" />
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider">Live Notifications</h4>
                         </div>
-                        <div className="flex-1 space-y-0.5">
-                          <p className={`text-xs ${!n.read ? 'font-bold text-white' : 'text-zinc-400'}`}>
-                            {n.title}
-                          </p>
-                          <p className="text-[10px] text-zinc-500">{n.time}</p>
-                        </div>
-                        {!n.read && <span className="h-2 w-2 rounded-full bg-emerald-500 mt-1 shrink-0" />}
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold transition"
+                          >
+                            <CheckCheck className="h-3.5 w-3.5" />
+                            Mark all read
+                          </button>
+                        )}
                       </div>
-                    ))}
 
-                    {notifications.length === 0 && (
-                      <p className="py-6 text-center text-zinc-500 text-xs">No notifications available.</p>
-                    )}
-                  </div>
-                </div>
-              )}
+                      <div className="divide-y divide-zinc-850/80 max-h-80 overflow-y-auto pr-1">
+                        {notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() =>
+                              setNotifications((prev) =>
+                                prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
+                              )
+                            }
+                            className={`py-3 px-3 flex items-start gap-3 rounded-2xl transition cursor-pointer hover:bg-zinc-900/80 ${
+                              !n.read ? 'bg-zinc-900/50 border border-zinc-850/60' : ''
+                            }`}
+                          >
+                            <div className={`p-2 rounded-xl border shrink-0 ${getNotificationIconBg(n.type)}`}>
+                              {getNotificationIcon(n.type)}
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <p className={`text-xs leading-snug ${!n.read ? 'font-bold text-white' : 'text-zinc-400'}`}>
+                                {n.title}
+                              </p>
+                              <p className="text-[10px] text-zinc-500 font-mono">{n.time}</p>
+                            </div>
+                            {!n.read && <span className="h-2 w-2 rounded-full bg-emerald-400 mt-1.5 shrink-0 shadow-sm shadow-emerald-400" />}
+                          </div>
+                        ))}
+
+                        {notifications.length === 0 && (
+                          <div className="py-8 text-center text-zinc-500 text-xs space-y-1">
+                            <Sparkles className="h-6 w-6 mx-auto text-zinc-700 mb-1" />
+                            <p>No unread notifications.</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="h-8 w-px bg-zinc-900 hidden sm:block" />
