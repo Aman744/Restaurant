@@ -1,7 +1,8 @@
 import React from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, X, Copy, ExternalLink, QrCode } from 'lucide-react';
 import { useTableStore } from '../../../stores/useTableStore';
 import { QrCodeGenerator } from '../../../utils/QrCodeGenerator';
+import { useToast } from '../../../components/shared/ToastContext';
 
 interface ViewQrModalProps {
   tenantId: string;
@@ -9,44 +10,82 @@ interface ViewQrModalProps {
 
 export const ViewQrModal: React.FC<ViewQrModalProps> = ({ tenantId }) => {
   const { viewingQrTable, setViewingQrTable } = useTableStore();
+  const toast = useToast();
 
   if (!viewingQrTable) return null;
 
   const targetUrl = `${window.location.origin}/customer/table/${tenantId}/${viewingQrTable.id}`;
-  const svgMarkup = QrCodeGenerator.generateSvgString(targetUrl, 260);
+  const svgMarkup = QrCodeGenerator.generateSvgString(targetUrl, 240);
 
   const handleDownload = () => {
     const filename = `qr_${viewingQrTable.number.toLowerCase().replace(/\s+/g, '_')}`;
     QrCodeGenerator.downloadSvg(targetUrl, filename);
+    toast.success(`Downloaded Vector SVG QR for ${viewingQrTable.number}!`);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(targetUrl);
+    toast.success('Copied table order URL to clipboard!');
+  };
+
+  const handleOpenLink = () => {
+    window.open(targetUrl, '_blank');
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white text-center space-y-4 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+      <div className="w-full max-w-sm border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white text-center space-y-5 relative">
         <button
           onClick={() => setViewingQrTable(null)}
-          className="absolute top-4 right-4 p-1.5 rounded-lg border border-zinc-800 text-zinc-400 hover:text-white"
+          className="absolute top-4 right-4 p-1.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white transition"
+          title="Close Modal"
         >
           <X className="h-4 w-4" />
         </button>
 
-        <div>
-          <h3 className="text-lg font-extrabold text-white">{viewingQrTable.number}</h3>
-          <p className="text-xs text-zinc-500 mt-1">Scan to open digital menu & place orders</p>
+        <div className="space-y-1">
+          <div className="flex items-center justify-center gap-2">
+            <QrCode className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-lg font-extrabold text-white">{viewingQrTable.number}</h3>
+          </div>
+          <p className="text-xs text-zinc-400">Scan QR code to open digital menu & place table orders</p>
         </div>
 
-        {/* Offline Vector SVG Render */}
-        <div className="p-4 bg-zinc-900 border border-zinc-800 rounded-2xl flex items-center justify-center">
+        {/* High-Contrast White Background Scannable Card */}
+        <div className="p-5 bg-white border border-zinc-200 rounded-2xl flex flex-col items-center justify-center shadow-xl space-y-2">
           <div dangerouslySetInnerHTML={{ __html: svgMarkup }} />
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-800">
+            {viewingQrTable.number} • Scan & Order
+          </span>
         </div>
 
-        <button
-          onClick={handleDownload}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
-        >
-          <Download className="h-4 w-4" />
-          Download Vector SVG QR
-        </button>
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-1">
+          <button
+            onClick={handleDownload}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10 transition"
+          >
+            <Download className="h-4 w-4" />
+            Download Vector SVG QR
+          </button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleCopyLink}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl transition"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy URL
+            </button>
+            <button
+              onClick={handleOpenLink}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-emerald-400 text-xs font-semibold rounded-xl transition"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Test Menu
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

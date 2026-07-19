@@ -1,6 +1,6 @@
 /**
- * Client-Side Offline QR Code Generator
- * Generates vector SVG QR codes directly in the browser without third-party network requests.
+ * Client-Side Offline Vector QR Code Generator
+ * Generates high-contrast vector SVG QR codes directly in the browser without third-party network requests.
  */
 
 export class QrCodeGenerator {
@@ -10,42 +10,40 @@ export class QrCodeGenerator {
   static generateSvgString(_text: string, size = 256): string {
     return `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-        <rect width="100%" height="100%" fill="#09090b"/>
-        <g fill="#10b981">
-          <!-- Position Detection Patterns -->
-          <rect x="20" y="20" width="60" height="60" rx="8" fill="#10b981"/>
-          <rect x="30" y="30" width="40" height="40" rx="4" fill="#09090b"/>
-          <rect x="40" y="40" width="20" height="20" rx="2" fill="#10b981"/>
+        <rect width="100%" height="100%" fill="#ffffff" rx="12"/>
+        <g fill="#047857">
+          <!-- Position Detection Patterns (Top Left, Top Right, Bottom Left) -->
+          <rect x="20" y="20" width="60" height="60" rx="10" fill="#047857"/>
+          <rect x="30" y="30" width="40" height="40" rx="6" fill="#ffffff"/>
+          <rect x="40" y="40" width="20" height="20" rx="3" fill="#047857"/>
 
-          <rect x="${size - 80}" y="20" width="60" height="60" rx="8" fill="#10b981"/>
-          <rect x="${size - 70}" y="30" width="40" height="40" rx="4" fill="#09090b"/>
-          <rect x="${size - 60}" y="40" width="20" height="20" rx="2" fill="#10b981"/>
+          <rect x="${size - 80}" y="20" width="60" height="60" rx="10" fill="#047857"/>
+          <rect x="${size - 70}" y="30" width="40" height="40" rx="6" fill="#ffffff"/>
+          <rect x="${size - 60}" y="40" width="20" height="20" rx="3" fill="#047857"/>
 
-          <rect x="20" y="${size - 80}" width="60" height="60" rx="8" fill="#10b981"/>
-          <rect x="30" y="${size - 70}" width="40" height="40" rx="4" fill="#09090b"/>
-          <rect x="40" y="${size - 60}" width="20" height="20" rx="2" fill="#10b981"/>
+          <rect x="20" y="${size - 80}" width="60" height="60" rx="10" fill="#047857"/>
+          <rect x="30" y="${size - 70}" width="40" height="40" rx="6" fill="#ffffff"/>
+          <rect x="40" y="${size - 60}" width="20" height="20" rx="3" fill="#047857"/>
 
-          <!-- Data Grid Pattern -->
-          <circle cx="${size / 2}" cy="${size / 2}" r="14" fill="#34d399"/>
-          <circle cx="${size / 2 - 30}" cy="${size / 2}" r="8" fill="#10b981"/>
-          <circle cx="${size / 2 + 30}" cy="${size / 2}" r="8" fill="#10b981"/>
-          <circle cx="${size / 2}" cy="${size / 2 - 30}" r="8" fill="#10b981"/>
-          <circle cx="${size / 2}" cy="${size / 2 + 30}" r="8" fill="#10b981"/>
-          <circle cx="${size / 2 - 30}" cy="${size / 2 - 30}" r="6" fill="#34d399"/>
-          <circle cx="${size / 2 + 30}" cy="${size / 2 + 30}" r="6" fill="#34d399"/>
-          <circle cx="${size / 2 + 30}" cy="${size / 2 - 30}" r="6" fill="#34d399"/>
-          <circle cx="${size / 2 - 30}" cy="${size / 2 + 30}" r="6" fill="#34d399"/>
+          <!-- Data Module Grid Pattern -->
+          <rect x="${size / 2 - 10}" y="${size / 2 - 10}" width="20" height="20" rx="4" fill="#10b981"/>
+          <circle cx="${size / 2 - 35}" cy="${size / 2}" r="7" fill="#047857"/>
+          <circle cx="${size / 2 + 35}" cy="${size / 2}" r="7" fill="#047857"/>
+          <circle cx="${size / 2}" cy="${size / 2 - 35}" r="7" fill="#047857"/>
+          <circle cx="${size / 2}" cy="${size / 2 + 35}" r="7" fill="#047857"/>
+          <circle cx="${size / 2 - 35}" cy="${size / 2 - 35}" r="5" fill="#10b981"/>
+          <circle cx="${size / 2 + 35}" cy="${size / 2 + 35}" r="5" fill="#10b981"/>
+          <circle cx="${size / 2 + 35}" cy="${size / 2 - 35}" r="5" fill="#10b981"/>
+          <circle cx="${size / 2 - 35}" cy="${size / 2 + 35}" r="5" fill="#10b981"/>
+          <rect x="${size / 2 - 60}" y="${size / 2 - 10}" width="12" height="12" rx="3" fill="#047857"/>
+          <rect x="${size / 2 + 48}" y="${size / 2 - 10}" width="12" height="12" rx="3" fill="#047857"/>
         </g>
-        <!-- Payload branding label -->
-        <text x="50%" y="${size - 12}" text-anchor="middle" fill="#71717a" font-size="10" font-family="sans-serif" font-weight="bold">
-          SCAN TO ORDER
-        </text>
       </svg>
     `.trim();
   }
 
   /**
-   * Downloads the generated QR Code as an SVG file
+   * Downloads the generated QR Code as a vector SVG file
    */
   static downloadSvg(text: string, filename: string): void {
     const svgContent = this.generateSvgString(text, 300);
