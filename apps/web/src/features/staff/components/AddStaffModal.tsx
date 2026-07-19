@@ -10,6 +10,7 @@ import { useToast } from '../../../components/shared/ToastContext';
 const staffSchema = z.object({
   displayName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['manager', 'kitchen-staff', 'waiter', 'cashier'])
 });
 
@@ -34,6 +35,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ tenantId, isMockMo
     defaultValues: {
       displayName: '',
       email: '',
+      password: '',
       role: 'waiter'
     }
   });
@@ -45,9 +47,10 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ tenantId, isMockMo
         data.displayName,
         data.email,
         data.role as UserRole,
+        data.password,
         isMockMode
       );
-      toast.success(`Provisioned staff profile for ${data.displayName}.`);
+      toast.success(`Provisioned staff account for ${data.displayName}.`);
       setAddModalOpen(false);
       reset();
     } catch (err: any) {
@@ -85,6 +88,17 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ tenantId, isMockMo
           </div>
 
           <div className="space-y-1">
+            <label className="text-xs text-zinc-400 font-semibold uppercase">Account Password</label>
+            <input
+              type="password"
+              {...register('password')}
+              className="w-full border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+              placeholder="••••••••"
+            />
+            {errors.password && <p className="text-[10px] text-red-400">{errors.password.message}</p>}
+          </div>
+
+          <div className="space-y-1">
             <label className="text-xs text-zinc-400 font-semibold uppercase">Assigned Role</label>
             <select
               {...register('role')}
@@ -110,7 +124,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ tenantId, isMockMo
               disabled={isSubmitting}
               className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
             >
-              {isSubmitting ? 'Adding...' : 'Add Staff'}
+              {isSubmitting ? 'Provisioning...' : 'Add Staff'}
             </button>
           </div>
         </form>

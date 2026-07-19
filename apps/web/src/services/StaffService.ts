@@ -1,20 +1,32 @@
-import { db } from '../lib/firebase.js';
+import { db, firebaseConfig } from '../lib/firebase.js';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
 import { UserConverter } from '@restaurant-qr/infra';
 import type { UserProfile, UserRole } from '@restaurant-qr/core';
 
 const MOCK_STAFF_KEY = 'restaurant_qr_mock_staff_db';
+const MOCK_CREDENTIALS_DB_KEY = 'restaurant_qr_mock_credentials_db';
+
+const hashPasswordLocal = async (password: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+};
 
 export class StaffService {
   /**
-   * Creates or provisions a staff profile without storing plain passwords in Firestore
+   * Creates or provisions a staff profile and auth credentials securely
    */
   static async createStaffMember(
     tenantId: string,
     displayName: string,
     email: string,
     role: UserRole,
-    isMockMode: boolean
+    password?: string,
+    isMockMode?: boolean
   ): Promise<UserProfile> {
     const uid = `staff_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 
@@ -29,6 +41,20 @@ export class StaffService {
     };
 
     if (isMockMode) {
+      if (password) {
+        const hashed = await hashPasswordLocal(password);
+        const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
+        const credentialsDb = rawDb ? JSON.parse(rawDb) : {};
+        credentialsDb[email.toLowerCase()] = {
+          uid,
+          email: email.toLowerCase(),
+          displayName,
+          passwordHash: hashed,
+          claims: { role, tenantId }
+        };
+        localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
+      }
+
       const stored = localStorage.getItem(MOCK_STAFF_KEY);
       const parsed: UserProfile[] = stored ? JSON.parse(stored) : [];
       parsed.push(profile);
@@ -36,12 +62,27 @@ export class StaffService {
       return profile;
     }
 
+    // Firebase Mode Secondary Auth App creation
+    if (password) {
+      const appName = `SecondaryStaffApp_${Date.now()}`;
+      const secondaryApp = initializeApp(firebaseConfig, appName);
+      const secondaryAuth = getAuth(secondaryApp);
+      try {
+        const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        const staffUid = credential.user.uid;
+        await authSignOut(secondaryAuth);
+        profile.uid = staffUid;
+      } catch (authErr: any) {
+        console.error('Firebase Auth staff creation failed:', authErr);
+      }
+    }
+
     // Write profile document to global users collection
-    const userDocRef = doc(db, 'users', uid).withConverter(UserConverter);
+    const userDocRef = doc(db, 'users', profile.uid).withConverter(UserConverter);
     await setDoc(userDocRef, profile);
 
     // Also index under tenant's staff subcollection
-    const tenantStaffRef = doc(db, 'tenants', tenantId, 'staff', uid).withConverter(UserConverter);
+    const tenantStaffRef = doc(db, 'tenants', tenantId, 'staff', profile.uid).withConverter(UserConverter);
     await setDoc(tenantStaffRef, profile);
 
     return profile;
