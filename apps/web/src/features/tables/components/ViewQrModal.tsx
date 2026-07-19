@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, X, Copy, ExternalLink, QrCode } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useTableStore } from '../../../stores/useTableStore';
-import { QrCodeGenerator } from '../../../utils/QrCodeGenerator';
 import { useToast } from '../../../components/shared/ToastContext';
 
 interface ViewQrModalProps {
@@ -11,16 +11,48 @@ interface ViewQrModalProps {
 export const ViewQrModal: React.FC<ViewQrModalProps> = ({ tenantId }) => {
   const { viewingQrTable, setViewingQrTable } = useTableStore();
   const toast = useToast();
+  const [qrDataUrl, setQrDataUrl] = useState<string>('');
+
+  const targetUrl = viewingQrTable
+    ? `${window.location.origin}/customer/table/${tenantId}/${viewingQrTable.id}`
+    : '';
+
+  useEffect(() => {
+    if (!targetUrl) return;
+
+    let active = true;
+
+    // Generate real ISO-Standard camera-scannable QR DataURL
+    QRCode.toDataURL(targetUrl, {
+      width: 320,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    })
+      .then((url) => {
+        if (active) setQrDataUrl(url);
+      })
+      .catch((err) => console.error('QR DataURL error:', err));
+
+    return () => {
+      active = false;
+    };
+  }, [targetUrl]);
 
   if (!viewingQrTable) return null;
 
-  const targetUrl = `${window.location.origin}/customer/table/${tenantId}/${viewingQrTable.id}`;
-  const svgMarkup = QrCodeGenerator.generateSvgString(targetUrl, 240);
-
   const handleDownload = () => {
-    const filename = `qr_${viewingQrTable.number.toLowerCase().replace(/\s+/g, '_')}`;
-    QrCodeGenerator.downloadSvg(targetUrl, filename);
-    toast.success(`Downloaded Vector SVG QR for ${viewingQrTable.number}!`);
+    if (!qrDataUrl) return;
+    const filename = `qr_${viewingQrTable.number.toLowerCase().replace(/\s+/g, '_')}.png`;
+    const link = document.createElement('a');
+    link.href = qrDataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Downloaded high-res scannable QR code for ${viewingQrTable.number}!`);
   };
 
   const handleCopyLink = () => {
@@ -48,14 +80,20 @@ export const ViewQrModal: React.FC<ViewQrModalProps> = ({ tenantId }) => {
             <QrCode className="h-5 w-5 text-emerald-400" />
             <h3 className="text-lg font-extrabold text-white">{viewingQrTable.number}</h3>
           </div>
-          <p className="text-xs text-zinc-400">Scan QR code to open digital menu & place table orders</p>
+          <p className="text-xs text-zinc-400">Scan QR code with any phone camera to open digital menu</p>
         </div>
 
-        {/* High-Contrast White Background Scannable Card */}
+        {/* Real ISO-Standard Camera Scannable QR Code Image */}
         <div className="p-5 bg-white border border-zinc-200 rounded-2xl flex flex-col items-center justify-center shadow-xl space-y-2">
-          <div dangerouslySetInnerHTML={{ __html: svgMarkup }} />
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt={`QR Code for ${viewingQrTable.number}`} className="w-56 h-56 object-contain" />
+          ) : (
+            <div className="w-56 h-56 flex items-center justify-center text-zinc-400 text-xs font-semibold">
+              Generating QR Matrix...
+            </div>
+          )}
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-800">
-            {viewingQrTable.number} • Scan & Order
+            {viewingQrTable.number} • Scan to Order
           </span>
         </div>
 
@@ -66,7 +104,7 @@ export const ViewQrModal: React.FC<ViewQrModalProps> = ({ tenantId }) => {
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10 transition"
           >
             <Download className="h-4 w-4" />
-            Download Vector SVG QR
+            Download Printable PNG QR
           </button>
 
           <div className="grid grid-cols-2 gap-2">
