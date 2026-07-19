@@ -3,7 +3,7 @@ import { db, auth } from '../../../lib/firebase.js';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useToast } from '../../../components/shared/ToastContext';
-import { Save, Store, Receipt, DollarSign, Phone, MapPin, Loader2, KeyRound, Lock } from 'lucide-react';
+import { Save, Store, Receipt, DollarSign, Phone, MapPin, Loader2, KeyRound, Lock, Eye } from 'lucide-react';
 
 interface SettingsTabProps {
   tenantId: string;
@@ -54,8 +54,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               setRestaurantName(parsed.restaurantName || 'My Restaurant');
               setPhone(parsed.phone || '+91 98765 43210');
               setAddress(parsed.address || '123 Gourmet Avenue');
-              setReceiptHeader(parsed.receiptHeader || 'Gourmet Dining');
-              setReceiptFooter(parsed.receiptFooter || 'Thank you for dining!');
+              setReceiptHeader(parsed.receiptHeader || 'Gourmet Dining & QR Bar');
+              setReceiptFooter(parsed.receiptFooter || 'Thank you for dining with us! Please visit again.');
             }
           }
         } else {
@@ -68,7 +68,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             setRestaurantName(data.restaurantName || 'My Restaurant');
             setPhone(data.phone || '+91 98765 43210');
             setAddress(data.address || '123 Gourmet Avenue');
-            setReceiptHeader(data.receiptHeader || 'Gourmet Dining');
+            setReceiptHeader(data.receiptHeader || 'Gourmet Dining & QR Bar');
             setReceiptFooter(data.receiptFooter || 'Thank you!');
           }
         }
@@ -278,34 +278,86 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
           </div>
         </div>
 
-        {/* Section 3: Thermal Receipt Customization */}
-        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
+        {/* Section 3: Thermal Receipt Customization & Live Preview */}
+        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6">
           <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
             <Receipt className="h-4 w-4 text-emerald-400" />
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Thermal Receipt Customization</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Thermal Receipt Customization & Live Preview</h4>
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Header Title</label>
-              <input
-                type="text"
-                value={receiptHeader}
-                onChange={(e) => setReceiptHeader(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                placeholder="Title printed at top of thermal receipt"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Header Title</label>
+                <input
+                  type="text"
+                  value={receiptHeader}
+                  onChange={(e) => setReceiptHeader(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="Title printed at top of thermal receipt"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Footer Message</label>
+                <textarea
+                  rows={3}
+                  value={receiptFooter}
+                  onChange={(e) => setReceiptFooter(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30 resize-none"
+                  placeholder="Thank you message printed at bottom of receipt"
+                />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Footer Message</label>
-              <textarea
-                rows={2}
-                value={receiptFooter}
-                onChange={(e) => setReceiptFooter(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30 resize-none"
-                placeholder="Thank you message printed at bottom of receipt"
-              />
+            {/* Thermal Receipt Live Preview Paper */}
+            <div className="space-y-2">
+              <span className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                <Eye className="h-3.5 w-3.5 text-emerald-400" />
+                Live Thermal Print Preview
+              </span>
+              <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none">
+                <div className="text-center font-bold border-b border-black/20 pb-2">
+                  <p className="uppercase text-xs tracking-wider font-black">{receiptHeader || 'RESTAURANT NAME'}</p>
+                  <p className="text-[10px] font-normal text-zinc-600 mt-0.5">{address || 'Store Location Address'}</p>
+                  <p className="text-[10px] font-normal text-zinc-600">{phone || 'Ph: +91 9876543210'}</p>
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-700 py-1 border-b border-black/10">
+                  <span>Table #01</span>
+                  <span>Sample Bill</span>
+                </div>
+                <div className="space-y-1 py-1 text-[11px]">
+                  <div className="flex justify-between">
+                    <span>1x Truffle Burger</span>
+                    <span>₹450.00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>1x Fresh Mint Soda</span>
+                    <span>₹120.00</span>
+                  </div>
+                </div>
+                <div className="border-t border-black/20 pt-2 space-y-1 text-[10px]">
+                  <div className="flex justify-between text-zinc-600">
+                    <span>Subtotal:</span>
+                    <span>₹570.00</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-600">
+                    <span>GST ({taxRate}%):</span>
+                    <span>₹{(570 * (taxRate / 100)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-zinc-600">
+                    <span>Service Charge ({serviceChargeRate}%):</span>
+                    <span>₹{(570 * (serviceChargeRate / 100)).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-black text-xs pt-1 border-t border-black/20">
+                    <span>GRAND TOTAL:</span>
+                    <span>₹{(570 * (1 + (taxRate + serviceChargeRate) / 100)).toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="text-center text-[10px] text-zinc-600 pt-2 border-t border-black/20">
+                  <p className="italic">{receiptFooter || 'Thank you for dining with us!'}</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
