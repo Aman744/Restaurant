@@ -48,8 +48,7 @@ export const CashierDashboard: React.FC = () => {
         } else {
           const settingsSnap = await getDoc(doc(db, 'tenants', tenant.id, 'settings', 'general'));
           if (settingsSnap.exists() && active) {
-            const data = settingsSnap.data();
-            setCurrencySymbol(data.currency === 'INR' ? '₹' : '$');
+            setCurrencySymbol('₹');
           }
         }
       } catch (e) {
