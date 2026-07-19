@@ -7,21 +7,24 @@ import { useOrderStore } from '../../../stores/useOrderStore';
 
 interface OrdersTabProps {
   tenantId: string;
-  orders: Order[];
+  orders?: Order[];
   isMockMode: boolean;
   currencySymbol?: string;
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({
   tenantId,
-  orders,
+  orders = [],
   isMockMode,
   currencySymbol = '₹'
 }) => {
   const { ordersFilter, setOrdersFilter } = useOrderStore();
   const toast = useToast();
 
-  const filteredOrders = orders.filter((o) => {
+  const safeOrders = Array.isArray(orders) ? orders : [];
+
+  const filteredOrders = safeOrders.filter((o) => {
+    if (!o) return false;
     if (ordersFilter === 'all') return true;
     if (ordersFilter === 'new') return o.status === 'pending';
     if (ordersFilter === 'pending') return o.status === 'preparing' || o.status === 'accepted';
@@ -57,7 +60,7 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                 : 'text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            {filter} ({orders.filter((o) => filter === 'all' ? true : filter === 'new' ? o.status === 'pending' : filter === 'pending' ? (o.status === 'preparing' || o.status === 'accepted') : o.status === filter).length})
+            {filter} ({safeOrders.filter((o) => filter === 'all' ? true : filter === 'new' ? o.status === 'pending' : filter === 'pending' ? (o.status === 'preparing' || o.status === 'accepted') : o.status === filter).length})
           </button>
         ))}
       </div>
@@ -73,24 +76,27 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                   <p className="text-[10px] text-zinc-500">Order ID: #{order.id}</p>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] uppercase font-bold bg-zinc-800 text-zinc-300">
-                  {order.status}
+                  {order.status || 'pending'}
                 </span>
               </div>
 
               <div className="mt-4 space-y-2 border-y border-zinc-800/80 py-3">
-                {order.items.map((item, idx) => (
+                {(order.items || []).map((item, idx) => (
                   <div key={idx} className="flex justify-between text-xs text-zinc-300">
                     <span>{item.name} x{item.quantity}</span>
-                    <span className="font-semibold">{currencySymbol}{item.totalPrice.toFixed(2)}</span>
+                    <span className="font-semibold">{currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity || 0).toFixed(2)}</span>
                   </div>
                 ))}
+                {(!order.items || order.items.length === 0) && (
+                  <p className="text-[10px] text-zinc-500 italic">No item details available</p>
+                )}
               </div>
             </div>
 
             <div className="space-y-3 pt-2">
               <div className="flex justify-between items-center text-sm font-bold text-white">
                 <span>Total Amount:</span>
-                <span className="text-emerald-400">{currencySymbol}{order.totals?.grandTotal.toFixed(2)}</span>
+                <span className="text-emerald-400">{currencySymbol}{(order.totals?.grandTotal || 0).toFixed(2)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
