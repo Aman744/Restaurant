@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, QrCode, Trash2, LayoutGrid, List, Users, CheckCircle2, Clock, Utensils } from 'lucide-react';
+import { Plus, QrCode, Trash2, LayoutGrid, List, Users, CheckCircle2, Clock, Utensils, Copy, ExternalLink } from 'lucide-react';
 import type { Table } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 import { useTableStore } from '../../../stores/useTableStore';
@@ -47,30 +47,36 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
     });
   };
 
+  const handleCopyLink = (t: Table) => {
+    const url = `${window.location.origin}/customer/table/${tenantId}/${t.id}`;
+    navigator.clipboard.writeText(url);
+    toast.success(`Copied order URL for ${t.number}!`);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'occupied':
         return (
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm shadow-red-500/10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 shadow-sm shadow-red-500/10">
             <Clock className="h-3 w-3" />
             Occupied
           </span>
         );
       case 'reserved':
         return (
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm shadow-amber-500/10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-sm shadow-amber-500/10">
             Reserved
           </span>
         );
       case 'cleaning':
         return (
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm shadow-sky-500/10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm shadow-sky-500/10">
             Cleaning
           </span>
         );
       default:
         return (
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-500/10">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm shadow-emerald-500/10">
             <CheckCircle2 className="h-3 w-3" />
             Available
           </span>
@@ -83,13 +89,37 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       header: 'Table Number',
       accessorKey: 'number',
       sortable: true,
-      cell: (t) => <span className="font-extrabold text-white text-xs">{t.number}</span>
+      cell: (t) => (
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 font-bold">
+            <Utensils className="h-4 w-4" />
+          </div>
+          <div>
+            <span className="font-extrabold text-white text-xs block">{t.number}</span>
+            <span className="text-[10px] text-zinc-500">ID: {t.id}</span>
+          </div>
+        </div>
+      )
     },
     {
-      header: 'Seating Capacity',
+      header: 'Capacity',
       accessorKey: 'seatingCapacity',
       sortable: true,
-      cell: (t) => <span className="text-zinc-400 text-xs">{t.seatingCapacity} Guests</span>
+      cell: (t) => (
+        <div className="flex items-center gap-1.5 text-zinc-300 text-xs font-medium">
+          <Users className="h-3.5 w-3.5 text-zinc-500" />
+          <span>{t.seatingCapacity || 4} Guests</span>
+        </div>
+      )
+    },
+    {
+      header: 'QR Token ID',
+      accessorKey: 'qrToken',
+      cell: (t) => (
+        <span className="font-mono text-xs text-emerald-400 font-extrabold tracking-wider bg-emerald-500/10 border border-emerald-500/15 px-2.5 py-1 rounded-xl">
+          {t.qrToken ? `#${t.qrToken.replace(/^qr_token_|^tok_table_/, '').slice(0, 8).toUpperCase()}` : '#ACTIVE'}
+        </span>
+      )
     },
     {
       header: 'Status',
@@ -102,10 +132,25 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={() => setViewingQrTable(t)}
-            className="p-2 border border-zinc-800 hover:border-emerald-500/30 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-emerald-400 transition"
-            title="View QR Code"
+            className="flex items-center gap-1 px-2.5 py-1.5 border border-zinc-800 hover:border-emerald-500/30 bg-zinc-900/60 rounded-xl text-zinc-300 hover:text-emerald-400 text-xs font-semibold transition"
+            title="View & Download QR Code"
           >
-            <QrCode className="h-3.5 w-3.5" />
+            <QrCode className="h-3.5 w-3.5 text-emerald-400" />
+            View QR
+          </button>
+          <button
+            onClick={() => handleCopyLink(t)}
+            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-white transition"
+            title="Copy Table Order Link"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => window.open(`${window.location.origin}/customer/table/${tenantId}/${t.id}`, '_blank')}
+            className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-emerald-400 transition"
+            title="Test Table Menu"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => handleDeleteTable(t)}
@@ -147,7 +192,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition ${
                 viewMode === 'list'
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'text-zinc-500 hover:text-zinc-300'
@@ -263,7 +308,12 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
 
       {/* List View Mode */}
       {viewMode === 'list' && (
-        <DataTable data={safeTables} columns={columns} searchPlaceholder="Search tables by number or status..." searchField="number" />
+        <DataTable
+          data={safeTables}
+          columns={columns}
+          searchPlaceholder="Search tables by number, capacity or status..."
+          searchField="number"
+        />
       )}
 
       <AddTableModal tenantId={tenantId} isMockMode={isMockMode} />
