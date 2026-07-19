@@ -9,6 +9,7 @@ import { TenantProvider } from './features/auth/context/TenantContext';
 import { PermissionProvider } from './features/auth/context/PermissionContext';
 import { AppRouter } from './app/router';
 import { ToastProvider } from './components/shared/ToastContext';
+import { ConfirmProvider } from './components/shared/ConfirmContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,7 +85,9 @@ function App() {
             <TenantProvider>
               <PermissionProvider>
                 <ToastProvider>
-                  <AppRouter />
+                  <ConfirmProvider>
+                    <AppRouter />
+                  </ConfirmProvider>
                 </ToastProvider>
               </PermissionProvider>
             </TenantProvider>
