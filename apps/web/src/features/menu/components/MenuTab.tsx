@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { Plus, Upload, Edit3, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
-import type { MenuItem } from '@restaurant-qr/core';
+import React, { useRef, useState, useMemo } from 'react';
+import { Plus, Upload, Edit3, Trash2, ToggleLeft, ToggleRight, ChefHat } from 'lucide-react';
+import type { MenuItem, DietaryTag } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 import { useMenuStore } from '../../../stores/useMenuStore';
 import { useConfirm } from '../../../components/shared/ConfirmContext';
@@ -25,8 +25,27 @@ export const MenuTab: React.FC<MenuTabProps> = ({
   const { confirm } = useConfirm();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
 
   const safeMenuItems = Array.isArray(menuItems) ? menuItems : [];
+
+  // Filter by category
+  const filteredMenuItems = useMemo(() => {
+    if (activeCategoryFilter === 'all') return safeMenuItems;
+    return safeMenuItems.filter(
+      (item) => (item.categoryId || 'mains').toLowerCase() === activeCategoryFilter.toLowerCase()
+    );
+  }, [safeMenuItems, activeCategoryFilter]);
+
+  // Categories count
+  const categoriesList = useMemo(() => {
+    const map = new Map<string, number>();
+    safeMenuItems.forEach((item) => {
+      const cat = (item.categoryId || 'mains').toLowerCase();
+      map.set(cat, (map.get(cat) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
+  }, [safeMenuItems]);
 
   const handleStockToggle = async (item: MenuItem) => {
     try {
@@ -63,19 +82,44 @@ export const MenuTab: React.FC<MenuTabProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const renderDietaryBadge = (tags?: DietaryTag[]) => {
+    if (!tags || tags.length === 0) return null;
+    const primaryTag = tags[0];
+    const isVeg = primaryTag === 'veg' || primaryTag === 'vegan' || primaryTag === 'jain';
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase border ${
+          isVeg
+            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            : 'bg-red-500/10 text-red-400 border-red-500/20'
+        }`}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${isVeg ? 'bg-emerald-400' : 'bg-red-400'}`} />
+        {primaryTag}
+      </span>
+    );
+  };
+
   const columns: Column<MenuItem>[] = [
     {
-      header: 'Dish Name',
+      header: 'Dish Details',
       accessorKey: 'name',
       sortable: true,
       cell: (item) => {
-        const imageUrl = item.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
+        const imageUrl =
+          item.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
         return (
           <div className="flex items-center gap-3">
-            <img src={imageUrl} alt={item.name} className="h-9 w-9 rounded-xl object-cover border border-zinc-800" />
-            <div>
-              <div className="font-bold text-white text-xs">{item.name}</div>
-              <div className="text-[10px] text-zinc-500">{item.description || 'No description'}</div>
+            <div className="relative">
+              <img src={imageUrl} alt={item.name} className="h-10 w-10 rounded-xl object-cover border border-zinc-800 shadow-md" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white text-xs hover:text-emerald-400 transition">{item.name}</span>
+                {renderDietaryBadge(item.dietaryTags)}
+              </div>
+              <div className="text-[10px] text-zinc-500 truncate max-w-xs">{item.description || 'No description provided'}</div>
             </div>
           </div>
         );
@@ -86,34 +130,43 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       accessorKey: 'categoryId',
       sortable: true,
       cell: (item) => (
-        <span className="capitalize px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-300">
-          {item.categoryId || 'default'}
+        <span className="capitalize px-3 py-1 rounded-xl text-[10px] font-bold bg-zinc-900 border border-zinc-800 text-zinc-300">
+          {item.categoryId || 'Mains'}
         </span>
       )
+    },
+    {
+      header: 'Prep Time',
+      accessorKey: 'preparationTime',
+      sortable: true,
+      cell: (item) => <span className="text-zinc-400 text-xs font-mono">{item.preparationTime || 10} mins</span>
     },
     {
       header: 'Price',
       accessorKey: 'price',
       sortable: true,
       cell: (item) => (
-        <span className="font-bold text-white">
+        <span className="font-black text-emerald-400 text-sm">
           {currencySymbol}
           {(item.price || 0).toFixed(2)}
         </span>
       )
     },
     {
-      header: 'Stock Status',
+      header: 'Availability',
       cell: (item) => (
-        <button onClick={() => handleStockToggle(item)} className="focus:outline-none flex items-center gap-1.5">
+        <button
+          onClick={() => handleStockToggle(item)}
+          className="focus:outline-none flex items-center gap-1.5 hover:opacity-80 transition"
+        >
           {item.stockStatus === 'in-stock' ? (
-            <span className="flex items-center gap-1 text-emerald-400 text-xs font-semibold">
-              <ToggleRight className="h-5 w-5 text-emerald-500" />
+            <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl">
+              <ToggleRight className="h-4 w-4 text-emerald-400" />
               In Stock
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-zinc-500 text-xs font-semibold">
-              <ToggleLeft className="h-5 w-5 text-zinc-600" />
+            <span className="flex items-center gap-1.5 text-zinc-500 text-xs font-bold bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded-xl">
+              <ToggleLeft className="h-4 w-4 text-zinc-600" />
               Out of Stock
             </span>
           )}
@@ -126,13 +179,15 @@ export const MenuTab: React.FC<MenuTabProps> = ({
         <div className="flex items-center gap-2 justify-end">
           <button
             onClick={() => setEditingItem(item)}
-            className="p-1.5 border border-zinc-800 hover:border-zinc-700 rounded-lg text-zinc-400 hover:text-white"
+            className="p-2 border border-zinc-800 hover:border-emerald-500/30 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-white transition shadow-sm"
+            title="Edit Dish"
           >
             <Edit3 className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => handleDelete(item)}
-            className="p-1.5 border border-zinc-800 hover:border-red-500/30 rounded-lg text-zinc-400 hover:text-red-400"
+            className="p-2 border border-zinc-800 hover:border-red-500/30 bg-zinc-900/60 rounded-xl text-zinc-400 hover:text-red-400 transition shadow-sm"
+            title="Delete Dish"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -142,15 +197,22 @@ export const MenuTab: React.FC<MenuTabProps> = ({
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Header Actions */}
-      <div className="flex justify-between items-center">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Menu Catalog</h3>
-        <div className="flex gap-2">
+    <div className="space-y-6">
+      {/* Header Actions & Title */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <ChefHat className="h-5 w-5 text-emerald-400" />
+            <h3 className="text-base font-extrabold text-white">Menu Catalog & Dish Management</h3>
+          </div>
+          <p className="text-xs text-zinc-500 mt-1">Manage pricing, dietary tags, stock status, and CSV imports</p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
           <input type="file" accept=".csv" ref={fileInputRef} onChange={handleCsvFileChange} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl transition shadow-md"
           >
             <Upload className="h-4 w-4 text-emerald-400" />
             Import CSV
@@ -160,16 +222,54 @@ export const MenuTab: React.FC<MenuTabProps> = ({
               setEditingItem(null);
               setAddModalOpen(true);
             }}
-            className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10 transition"
           >
             <Plus className="h-4 w-4" />
-            Add Dish
+            Add New Dish
           </button>
         </div>
       </div>
 
+      {/* Category Filter Pills Bar */}
+      <div className="flex items-center gap-2 border-b border-zinc-850 pb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveCategoryFilter('all')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition border ${
+            activeCategoryFilter === 'all'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+              : 'bg-zinc-900/40 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+          }`}
+        >
+          All Categories ({safeMenuItems.length})
+        </button>
+
+        {categoriesList.map((cat) => (
+          <button
+            key={cat.name}
+            onClick={() => setActiveCategoryFilter(cat.name)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition border ${
+              activeCategoryFilter === cat.name
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-zinc-900/40 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+            }`}
+          >
+            {cat.name} ({cat.count})
+          </button>
+        ))}
+      </div>
+
       {/* Enterprise Data Table */}
-      <DataTable data={safeMenuItems} columns={columns} searchPlaceholder="Search dishes by name or category..." searchField="name" />
+      <DataTable
+        data={filteredMenuItems}
+        columns={columns}
+        searchPlaceholder="Search dishes by name, description or category..."
+        searchField="name"
+        emptyMessage={
+          activeCategoryFilter !== 'all'
+            ? `No menu items found in category "${activeCategoryFilter}".`
+            : 'No menu items available.'
+        }
+      />
 
       {/* Add/Edit Menu Item Modal */}
       <AddMenuModal tenantId={tenantId} isMockMode={isMockMode} />
