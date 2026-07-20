@@ -185,6 +185,7 @@ export class ReceiptPrinter {
           <!-- Header -->
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
+          <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: 22AAAAA0000A1Z5</div>
           <div class="dashed-divider"></div>
 
           <!-- Meta Details Table -->
