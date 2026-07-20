@@ -305,7 +305,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/waiter"
         element={
-          <ProtectedRoute allowedRoles={['waiter', 'manager', 'restaurant-admin']}>
+          <ProtectedRoute allowedRoles={['waiter', 'manager', 'restaurant-admin', 'super-admin']}>
             <WaiterDashboard />
           </ProtectedRoute>
         }
@@ -313,7 +313,7 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/cashier"
         element={
-          <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin']}>
+          <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
             <CashierDashboard />
           </ProtectedRoute>
         }
