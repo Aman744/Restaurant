@@ -31,15 +31,17 @@ export const RestaurantAdminDashboard: React.FC = () => {
   const { tenant } = useTenant();
 
   const tenantId = tenant?.id || 'tenant_dev_123';
+  const isManagerRoute = location.pathname.startsWith('/manager');
+  const basePath = isManagerRoute ? '/manager' : '/admin';
 
   const sidebarItems = [
-    { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
-    { name: 'Orders', path: '/admin/orders', icon: Utensils },
-    { name: 'Menu', path: '/admin/menu', icon: ChefHat },
-    { name: 'Tables', path: '/admin/tables', icon: Table },
-    { name: 'Staff', path: '/admin/staff', icon: Users },
-    { name: 'Reports', path: '/admin/reports', icon: FileText },
-    { name: 'Settings', path: '/admin/settings', icon: Settings }
+    { name: 'Dashboard', path: `${basePath}`, icon: LayoutDashboard },
+    { name: 'Orders', path: `${basePath}/orders`, icon: Utensils },
+    { name: 'Menu', path: `${basePath}/menu`, icon: ChefHat },
+    { name: 'Tables', path: `${basePath}/tables`, icon: Table },
+    { name: 'Staff', path: `${basePath}/staff`, icon: Users },
+    { name: 'Reports', path: `${basePath}/reports`, icon: FileText },
+    { name: 'Settings', path: `${basePath}/settings`, icon: Settings }
   ];
 
   const [orders, setOrders] = useState<Order[]>([]);

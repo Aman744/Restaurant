@@ -233,8 +233,56 @@ export const AppRouter: React.FC = () => {
       <Route
         path="/manager"
         element={
-          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin']}>
-            <RestaurantAdminDashboard /> {/* Reusing core admin board for showcase */}
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/orders"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/menu"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/tables"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/staff"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/reports"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/settings"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
           </ProtectedRoute>
         }
       />
