@@ -56,6 +56,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   const [logoError, setLogoError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('restaurant_qr_read_notif_ids');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dismissedNotifIds, setDismissedNotifIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('restaurant_qr_dismissed_notif_ids');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [notifications, setNotifications] = useState<SystemNotification[]>(initialNotifications);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -79,10 +98,54 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     }
   };
 
-  // Sync real-time live notifications from orders
+  // Sync real-time live notifications from orders with persistence
   useEffect(() => {
     let active = true;
     const tenantId = profile?.tenantId || 'tenant_dev_123';
+
+    const processOrdersIntoNotifs = (activeOrders: any[]) => {
+      const liveList: SystemNotification[] = [];
+
+      for (const o of activeOrders.slice(-10).reverse()) {
+        const notifId = `notif_${o.id}`;
+        if (dismissedNotifIds.includes(notifId)) continue;
+
+        let title = `Order #${o.id.slice(-6).toUpperCase()} placed for ${o.tableNumber || `Table ${o.tableId || '1'}`}`;
+        let type: 'order' | 'table' | 'system' = 'order';
+
+        if (o.requestedBillAt) {
+          title = `${o.tableNumber || `Table ${o.tableId || '1'}`} requested settlement bill!`;
+          type = 'table';
+        } else if (o.status === 'ready') {
+          title = `Order #${o.id.slice(-6).toUpperCase()} for ${o.tableNumber || `Table ${o.tableId || '1'}`} is READY!`;
+          type = 'table';
+        }
+
+        const isRead = readNotifIds.includes(notifId);
+
+        liveList.push({
+          id: notifId,
+          title,
+          time: formatTimeAgo(o.createdAt),
+          read: isRead,
+          type
+        });
+      }
+
+      setNotifications((prev) => {
+        const prevUnreadCount = prev.filter((n) => !n.read).length;
+        const newUnreadCount = liveList.filter((n) => !n.read).length;
+        if (newUnreadCount > prevUnreadCount && active) {
+          playBellSound();
+        }
+        return liveList.length > 0
+          ? liveList
+          : initialNotifications.filter((n) => !dismissedNotifIds.includes(n.id)).map((n) => ({
+              ...n,
+              read: readNotifIds.includes(n.id) ? true : n.read
+            }));
+      });
+    };
 
     const syncMockNotifications = () => {
       const cached = localStorage.getItem('restaurant_qr_mock_orders_db');
@@ -90,20 +153,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         try {
           const parsed = JSON.parse(cached);
           const activeOrders = parsed.filter((o: any) => o.status !== 'completed' && o.status !== 'archived');
-          const liveList: SystemNotification[] = activeOrders.slice(-8).reverse().map((o: any) => ({
-            id: `notif_${o.id}`,
-            title: `Order #${o.id.slice(-6).toUpperCase()} placed for ${o.tableNumber || `Table ${o.tableId || '1'}`}`,
-            time: formatTimeAgo(o.createdAt),
-            read: false,
-            type: 'order' as const
-          }));
-
-          setNotifications((prev) => {
-            if (liveList.length > prev.length && prev.length > 0) {
-              playBellSound();
-            }
-            return liveList.length > 0 ? liveList : initialNotifications;
-          });
+          processOrdersIntoNotifs(activeOrders);
         } catch (e) {}
       }
     };
@@ -118,25 +168,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     } else {
       const colRef = collection(db, 'tenants', tenantId, 'orders').withConverter(OrderConverter);
       const q = query(colRef, where('status', 'not-in', ['completed', 'archived']));
-      
+
       const unsubscribe = onSnapshot(q, (snap: any) => {
         if (!active) return;
-        const liveList: SystemNotification[] = snap.docs.slice(-8).reverse().map((d: any) => {
-          const o = d.data();
-          return {
-            id: `notif_${d.id}`,
-            title: `Order #${d.id.slice(-6).toUpperCase()} placed for ${o.tableNumber || `Table ${o.tableId || '1'}`}`,
-            time: formatTimeAgo(o.createdAt),
-            read: false,
-            type: 'order' as const
-          };
-        });
-        setNotifications((prev) => {
-          if (liveList.length > prev.length && prev.length > 0) {
-            playBellSound();
-          }
-          return liveList.length > 0 ? liveList : initialNotifications;
-        });
+        const activeOrders = snap.docs.map((d: any) => d.data());
+        processOrdersIntoNotifs(activeOrders);
       }, (err: any) => {
         console.error('Live notifications listener error:', err);
       });
@@ -146,7 +182,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         active = false;
       };
     }
-  }, [profile, isMockMode]);
+  }, [profile, isMockMode, readNotifIds, dismissedNotifIds]);
 
   const handleExitImpersonation = () => {
     localStorage.removeItem('impersonate_role');
@@ -161,16 +197,43 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   };
 
   const handleMarkAllRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    const updated = Array.from(new Set([...readNotifIds, ...allIds]));
+    setReadNotifIds(updated);
+    localStorage.setItem('restaurant_qr_read_notif_ids', JSON.stringify(updated));
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   const handleClearAllNotifications = () => {
+    const allIds = notifications.map((n) => n.id);
+    const updated = Array.from(new Set([...dismissedNotifIds, ...allIds]));
+    setDismissedNotifIds(updated);
+    localStorage.setItem('restaurant_qr_dismissed_notif_ids', JSON.stringify(updated));
     setNotifications([]);
   };
 
   const handleRemoveSingleNotification = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    const updated = Array.from(new Set([...dismissedNotifIds, id]));
+    setDismissedNotifIds(updated);
+    localStorage.setItem('restaurant_qr_dismissed_notif_ids', JSON.stringify(updated));
     setNotifications((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleNotificationClick = (n: SystemNotification) => {
+    if (!n.read) {
+      const updated = Array.from(new Set([...readNotifIds, n.id]));
+      setReadNotifIds(updated);
+      localStorage.setItem('restaurant_qr_read_notif_ids', JSON.stringify(updated));
+      setNotifications((prev) => prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)));
+    }
+    setNotificationsOpen(false);
+
+    if (profile?.role === 'cashier') {
+      navigate('/cashier');
+    } else if (profile?.role === 'restaurant-admin' || profile?.role === 'manager') {
+      navigate('/admin/orders');
+    }
   };
 
   const getNotificationIcon = (type: string) => {
@@ -356,11 +419,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                         {notifications.map((n) => (
                           <div
                             key={n.id}
-                            onClick={() =>
-                              setNotifications((prev) =>
-                                prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
-                              )
-                            }
+                            onClick={() => handleNotificationClick(n)}
                             className={`p-3 rounded-2xl flex items-start gap-3 transition cursor-pointer group ${
                               n.read ? 'bg-transparent opacity-60' : 'bg-zinc-900/60 hover:bg-zinc-900'
                             }`}
