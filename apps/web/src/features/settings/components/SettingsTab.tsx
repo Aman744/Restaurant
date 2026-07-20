@@ -171,121 +171,201 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      {/* Header */}
-      <div>
-        <h3 className="text-base font-extrabold text-white">Restaurant Settings & Configuration</h3>
-        <p className="text-xs text-zinc-500 mt-1">Configure business profile, GST tax rates, thermal receipt branding, and account security</p>
+    <div className="space-y-6 max-w-7xl">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-base font-extrabold text-white">Restaurant Settings & Configuration</h3>
+          <p className="text-xs text-zinc-500 mt-1">Configure business profile, GST tax rates, thermal receipt branding, and account security</p>
+        </div>
+
+        <button
+          onClick={handleSaveSettings}
+          disabled={isSaving}
+          className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/10 transition"
+        >
+          <Save className="h-4 w-4" />
+          {isSaving ? 'Saving Changes...' : 'Save General Settings'}
+        </button>
       </div>
 
-      <form onSubmit={handleSaveSettings} className="space-y-6">
-        {/* Section 1: Business Profile */}
-        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
-            <Store className="h-4 w-4 text-emerald-400" />
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Business Identity</h4>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">Restaurant Brand Name</label>
-              <input
-                type="text"
-                value={restaurantName}
-                onChange={(e) => setRestaurantName(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                placeholder="e.g. Gourmet Bistro"
-                required
-              />
+      {/* 2-Column Grid Layout (1 Row 2 Cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Column 1: Business Profile & Financials */}
+        <div className="space-y-6">
+          {/* Section 1: Business Profile */}
+          <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+              <Store className="h-4 w-4 text-emerald-400" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Business Identity</h4>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-                <Phone className="h-3 w-3 text-zinc-500" />
-                Contact Phone
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                placeholder="+91 98765 43210"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Restaurant Brand Name</label>
+                <input
+                  type="text"
+                  value={restaurantName}
+                  onChange={(e) => setRestaurantName(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="e.g. Gourmet Bistro"
+                  required
+                />
+              </div>
 
-            <div className="space-y-1 sm:col-span-2">
-              <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-                <MapPin className="h-3 w-3 text-zinc-500" />
-                Physical Address
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                placeholder="Street name, City, Pin Code"
-              />
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                  <Phone className="h-3 w-3 text-zinc-500" />
+                  Contact Phone
+                </label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="+91 98765 43210"
+                />
+              </div>
+
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-zinc-500" />
+                  Physical Address
+                </label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="Street name, City, Pin Code"
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Section 2: Financials & Taxes */}
-        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
-          <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
-            <IndianRupee className="h-4 w-4 text-emerald-400" />
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Financials, Currency & GST Rates</h4>
+          {/* Section 2: Financials & Taxes */}
+          <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+              <IndianRupee className="h-4 w-4 text-emerald-400" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Financials, Currency & GST Rates</h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Operating Currency</label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none"
+                >
+                  <option value="INR">Indian Rupee (₹ INR)</option>
+                  <option value="USD">US Dollar ($ USD)</option>
+                  <option value="EUR">Euro (€ EUR)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">GST / Tax Rate (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="50"
+                  value={taxRate}
+                  onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Service Charge Rate (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="50"
+                  value={serviceChargeRate}
+                  onChange={(e) => setServiceChargeRate(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">Operating Currency</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none"
+          {/* Section 4: Security & Change Password Form */}
+          <form onSubmit={handleChangePassword} className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+              <KeyRound className="h-4 w-4 text-emerald-400" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Account Security & Change Password</h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-[11px] text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                  <Lock className="h-3 w-3 text-zinc-500" />
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                  <Lock className="h-3 w-3 text-zinc-500" />
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="Min 6 chars"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] text-zinc-400 font-semibold uppercase flex items-center gap-1">
+                  <Lock className="h-3 w-3 text-zinc-500" />
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                  placeholder="Repeat new password"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold text-xs rounded-xl transition shadow-md"
               >
-                <option value="INR">Indian Rupee (₹ INR)</option>
-                <option value="USD">US Dollar ($ USD)</option>
-                <option value="EUR">Euro (€ EUR)</option>
-              </select>
+                <KeyRound className="h-3.5 w-3.5 text-emerald-400" />
+                {isChangingPassword ? 'Updating...' : 'Update Password'}
+              </button>
             </div>
-
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">GST / Tax Rate (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="50"
-                value={taxRate}
-                onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs text-zinc-400 font-semibold uppercase">Service Charge Rate (%)</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="50"
-                value={serviceChargeRate}
-                onChange={(e) => setServiceChargeRate(parseFloat(e.target.value) || 0)}
-                className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-              />
-            </div>
-          </div>
+          </form>
         </div>
 
-        {/* Section 3: Thermal Receipt Customization & Live Preview */}
-        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6">
-          <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
-            <Receipt className="h-4 w-4 text-emerald-400" />
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Thermal Receipt Customization & Live Preview</h4>
-          </div>
+        {/* Column 2: Thermal Receipt Customization & Live Print Preview */}
+        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6 h-full flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+              <Receipt className="h-4 w-4 text-emerald-400" />
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">Thermal Receipt Customization & Live Preview</h4>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <div className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Header Title</label>
@@ -301,7 +381,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               <div className="space-y-1">
                 <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Footer Message</label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={receiptFooter}
                   onChange={(e) => setReceiptFooter(e.target.value)}
                   className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30 resize-none"
@@ -311,12 +391,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             </div>
 
             {/* Thermal Receipt Live Preview Paper */}
-            <div className="space-y-2">
+            <div className="space-y-2 pt-2">
               <span className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
                 <Eye className="h-3.5 w-3.5 text-emerald-400" />
                 Live Thermal Print Preview
               </span>
-              <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none">
+              <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none max-w-sm mx-auto">
                 <div className="text-center font-bold border-b border-black/20 pb-2">
                   <p className="uppercase text-xs tracking-wider font-black">{receiptHeader || 'RESTAURANT NAME'}</p>
                   <p className="text-[10px] font-normal text-zinc-600 mt-0.5">{address || 'Store Location Address'}</p>
@@ -361,84 +441,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             </div>
           </div>
         </div>
-
-        {/* Save General Settings Button */}
-        <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/10 transition"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving ? 'Saving Changes...' : 'Save General Settings'}
-          </button>
-        </div>
-      </form>
-
-      {/* Section 4: Security & Change Password Form */}
-      <form onSubmit={handleChangePassword} className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4 pt-4">
-        <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
-          <KeyRound className="h-4 w-4 text-emerald-400" />
-          <h4 className="text-xs font-bold text-white uppercase tracking-wider">Account Security & Change Password</h4>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-              <Lock className="h-3 w-3 text-zinc-500" />
-              Current Password
-            </label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-              <Lock className="h-3 w-3 text-zinc-500" />
-              New Password
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-              placeholder="Min 6 characters"
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-              <Lock className="h-3 w-3 text-zinc-500" />
-              Confirm New Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-              placeholder="Repeat new password"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <button
-            type="submit"
-            disabled={isChangingPassword}
-            className="flex items-center gap-2 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-bold text-xs rounded-xl transition shadow-md"
-          >
-            <KeyRound className="h-4 w-4 text-emerald-400" />
-            {isChangingPassword ? 'Updating Password...' : 'Update Account Password'}
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 };
