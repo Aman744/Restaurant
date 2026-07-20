@@ -183,6 +183,7 @@ export class ReceiptPrinter {
         </head>
         <body>
           <!-- Header -->
+          ${tenant?.logoUrl ? `<div class="text-center" style="margin-bottom: 6px;"><img src="${tenant.logoUrl}" style="height: 40px; width: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #000;" /></div>` : ''}
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
           <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: 22AAAAA0000A1Z5</div>
