@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, CheckCircle, Printer, X, Bell } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { useToast } from '../../components/shared/ToastContext';
@@ -167,6 +167,24 @@ export const CashierDashboard: React.FC = () => {
     }
   }, [tenantId, isMockMode]);
 
+  const formatOrderDateTime = (dateVal?: any) => {
+    if (!dateVal) return 'Just now';
+    let date: Date;
+    if (typeof dateVal?.toDate === 'function') {
+      date = dateVal.toDate();
+    } else if (dateVal instanceof Date) {
+      date = dateVal;
+    } else {
+      date = new Date(dateVal);
+    }
+
+    if (isNaN(date.getTime())) return 'Recently';
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  };
+
   // Map orders state to UI bills list structure
   const pendingBills: BillTicket[] = orders.map((o) => ({
     id: o.id,
@@ -178,9 +196,15 @@ export const CashierDashboard: React.FC = () => {
     itemsCount: (o.items || []).reduce((sum, it) => sum + (it.quantity || 1), 0),
     rawOrder: o
   })).sort((a, b) => {
-    const aReq = (a.rawOrder as any).requestedBillAt ? 1 : 0;
-    const bReq = (b.rawOrder as any).requestedBillAt ? 1 : 0;
-    return bReq - aReq;
+    const timeA = new Date((a.rawOrder as any).requestedBillAt || a.rawOrder.createdAt || 0).getTime();
+    const timeB = new Date((b.rawOrder as any).requestedBillAt || b.rawOrder.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  const sortedSettledOrders = [...settledOrders].sort((a, b) => {
+    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return timeB - timeA;
   });
 
   const handleSettle = async (billId: string) => {
@@ -414,7 +438,10 @@ export const CashierDashboard: React.FC = () => {
                         </span>
                         <h4 className="font-extrabold text-sm text-white">#{b.id.slice(-6).toUpperCase()}</h4>
                       </div>
-                      <p className="text-[10px] text-zinc-500 mt-1 font-mono">Invoice #{b.id}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        {formatOrderDateTime(b.rawOrder.createdAt)}
+                      </p>
                     </div>
                     {(b.rawOrder as any).requestedBillAt ? (
                       <span className="text-[9px] uppercase tracking-wider font-black px-2.5 py-1 rounded-xl border bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse flex items-center gap-1">
@@ -503,9 +530,9 @@ export const CashierDashboard: React.FC = () => {
             </span>
           </div>
 
-          {settledOrders.length > 0 ? (
+          {sortedSettledOrders.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {settledOrders.map((o) => (
+              {sortedSettledOrders.map((o) => (
                 <div
                   key={`settled_${o.id}`}
                   className="border border-zinc-850 bg-zinc-900/40 p-5 rounded-3xl space-y-4 opacity-80 hover:opacity-100 transition duration-200"
@@ -518,7 +545,10 @@ export const CashierDashboard: React.FC = () => {
                         </span>
                         <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
                       </div>
-                      <p className="text-[10px] text-zinc-500 mt-1 font-mono">Invoice #{o.id}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        Settled: {formatOrderDateTime(o.updatedAt || o.createdAt)}
+                      </p>
                     </div>
                     <span className="text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
                       PAID ({o.payment?.method || 'CASH'})

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { Utensils, HelpCircle, AlertCircle, CheckCircle, Send, CreditCard, RotateCcw, Check } from 'lucide-react';
+import { Utensils, HelpCircle, AlertCircle, CheckCircle, Send, CreditCard, RotateCcw, Check, Clock } from 'lucide-react';
 import type { Table, Order, OrderItem, OrderStatus } from '@restaurant-qr/core';
 import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
@@ -321,25 +321,51 @@ export const WaiterDashboard: React.FC = () => {
     );
   }
 
-  // Categorize Sections
-  const readyForDeliveryOrders = orders.filter((o) => {
-    const isServed = o.status === 'served';
-    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
-    const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
-    return !isServed && !isBillSent && o.status !== 'completed' && o.status !== 'archived' && (o.status === 'ready' || allItemsReady);
-  });
+  const formatOrderDateTime = (dateVal?: any) => {
+    if (!dateVal) return 'Just now';
+    let date: Date;
+    if (typeof dateVal?.toDate === 'function') {
+      date = dateVal.toDate();
+    } else if (dateVal instanceof Date) {
+      date = dateVal;
+    } else {
+      date = new Date(dateVal);
+    }
 
-  const currentlyServedOrders = orders.filter((o) => {
-    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
-    return o.status === 'served' && !isBillSent;
-  });
+    if (isNaN(date.getTime())) return 'Recently';
 
-  const sentToCashierOrders = orders.filter((o) => {
-    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
-    return isBillSent && o.status !== 'completed' && o.status !== 'archived';
-  });
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  };
 
-  const completedOrders = orders.filter((o) => o.status === 'completed');
+  // Categorize Sections (Sorted chronologically by date/time descending - newest first)
+  const readyForDeliveryOrders = orders
+    .filter((o) => {
+      const isServed = o.status === 'served';
+      const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
+      const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
+      return !isServed && !isBillSent && o.status !== 'completed' && o.status !== 'archived' && (o.status === 'ready' || allItemsReady);
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+  const currentlyServedOrders = orders
+    .filter((o) => {
+      const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
+      return o.status === 'served' && !isBillSent;
+    })
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+
+  const sentToCashierOrders = orders
+    .filter((o) => {
+      const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
+      return isBillSent && o.status !== 'completed' && o.status !== 'archived';
+    })
+    .sort((a, b) => new Date((b as any).requestedBillAt || b.updatedAt || 0).getTime() - new Date((a as any).requestedBillAt || a.updatedAt || 0).getTime());
+
+  const completedOrders = orders
+    .filter((o) => o.status === 'completed')
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
   const resolvedTables = tables.map((t) => {
     const hasActiveOrder = orders.some(
@@ -502,7 +528,10 @@ export const WaiterDashboard: React.FC = () => {
                           #{o.id.slice(-6).toUpperCase()}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-400 mt-1 font-medium">Customer: {o.customerName || 'Guest'}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        {formatOrderDateTime(o.createdAt)}
+                      </p>
                     </div>
                     <span className="text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-lg border bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
                       READY TO SERVE
@@ -572,7 +601,10 @@ export const WaiterDashboard: React.FC = () => {
                         </span>
                         <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
                       </div>
-                      <p className="text-xs text-zinc-400 mt-1 font-medium">Customer: {o.customerName || 'Guest'}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        Served: {formatOrderDateTime(o.updatedAt || o.createdAt)}
+                      </p>
                     </div>
                     <span className="text-[10px] font-extrabold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-lg">
                       SERVED
@@ -648,7 +680,10 @@ export const WaiterDashboard: React.FC = () => {
                         </span>
                         <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
                       </div>
-                      <p className="text-xs text-zinc-400 mt-1 font-medium">Customer: {o.customerName || 'Guest'}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        Dispatched: {formatOrderDateTime((o as any).requestedBillAt || o.updatedAt)}
+                      </p>
                     </div>
                     <span className="text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg animate-pulse">
                       SENT TO CASHIER
@@ -785,7 +820,10 @@ export const WaiterDashboard: React.FC = () => {
                         </span>
                         <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
                       </div>
-                      <p className="text-xs text-zinc-500 mt-1">Customer: {o.customerName || 'Guest'}</p>
+                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        Completed: {formatOrderDateTime(o.updatedAt || o.createdAt)}
+                      </p>
                     </div>
                     <span className="text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
                       COMPLETED
