@@ -2,13 +2,13 @@ import type { Order, Tenant } from '@restaurant-qr/core';
 
 export class ReceiptPrinter {
   /**
-   * Generates a clean, professional thermal receipt HTML template
+   * Generates a pixel-perfect thermal receipt HTML template optimized for 80mm thermal printers & PDF output
    */
   static generateReceiptHtml(order: Order, tenant?: Tenant | null): string {
     const currency = '₹';
     const restaurantName = tenant?.name || 'Aman\'s Restaurant & Bar';
-    const header = tenant?.theme?.receiptTheme?.header || 'Thank you for dining with us!';
-    const footer = tenant?.theme?.receiptTheme?.footer || 'Please visit again!';
+    const header = tenant?.theme?.receiptTheme?.header || 'TAX INVOICE / BILL RECEIPT';
+    const footer = tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
 
     let safeItems = Array.isArray(order?.items) ? order.items : [];
     if (safeItems.length === 0) {
@@ -29,13 +29,16 @@ export class ReceiptPrinter {
     const itemsHtml = safeItems
       .map(
         (item) => `
-        <tr>
-          <td style="padding: 4px 0; font-weight: 600;">
-            ${item.name || 'Item'} x${item.quantity || 1}
-            ${item.selectedVariant ? `<br/><span style="font-size: 10px; color: #555;">Opt: ${item.selectedVariant.name}</span>` : ''}
-            ${item.notes ? `<br/><span style="font-size: 10px; color: #555; italic;">"${item.notes}"</span>` : ''}
+        <tr style="border-bottom: 1px dashed #e0e0e0;">
+          <td style="padding: 5px 0; text-align: left;">
+            <div style="font-weight: 700; font-size: 12px; color: #000;">${item.name || 'Item'}</div>
+            ${item.selectedVariant ? `<div style="font-size: 10px; color: #444;">• Option: ${item.selectedVariant.name}</div>` : ''}
+            ${item.notes ? `<div style="font-size: 10px; color: #444; font-style: italic;">• Note: "${item.notes}"</div>` : ''}
           </td>
-          <td style="text-align: right; padding: 4px 0; font-weight: 700; font-family: monospace;">
+          <td style="padding: 5px 0; text-align: center; font-weight: 700; font-size: 12px; vertical-align: top;">
+            ${item.quantity || 1}
+          </td>
+          <td style="padding: 5px 0; text-align: right; font-weight: 800; font-size: 12px; font-family: monospace; vertical-align: top;">
             ${currency}${(item.totalPrice || (item.unitPrice || 0) * (item.quantity || 1) || 0).toFixed(2)}
           </td>
         </tr>
@@ -52,9 +55,9 @@ export class ReceiptPrinter {
 
     const dateStr = (() => {
       const val = order?.createdAt as any;
-      if (!val) return new Date().toLocaleString();
+      if (!val) return new Date().toLocaleString('en-IN');
       const d = val instanceof Date ? val : typeof val.toDate === 'function' ? val.toDate() : typeof val.seconds === 'number' ? new Date(val.seconds * 1000) : new Date(val);
-      return isNaN(d.getTime()) ? new Date().toLocaleString() : d.toLocaleString();
+      return isNaN(d.getTime()) ? new Date().toLocaleString('en-IN') : d.toLocaleString('en-IN');
     })();
 
     return `
@@ -68,43 +71,141 @@ export class ReceiptPrinter {
               size: 80mm auto;
               margin: 0;
             }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
             body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 280px;
+              font-family: 'Courier New', Courier, 'Liberation Mono', monospace;
+              width: 290px;
               margin: 0 auto;
-              padding: 15px;
+              padding: 16px;
               color: #000;
               background: #fff;
               font-size: 12px;
-              line-height: 1.4;
+              line-height: 1.35;
             }
             .text-center { text-align: center; }
             .text-right { text-align: right; }
-            .font-bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #000; margin: 10px 0; }
-            table { width: 100%; border-collapse: collapse; }
+            .text-left { text-align: left; }
+            .font-bold { font-weight: 700; }
+            .font-black { font-weight: 900; }
+            .uppercase { text-transform: uppercase; }
+
+            .dashed-divider {
+              border-top: 1.5px dashed #000;
+              margin: 10px 0;
+            }
+            .solid-divider {
+              border-top: 1.5px solid #000;
+              margin: 10px 0;
+            }
+            .double-divider {
+              border-top: 3px double #000;
+              margin: 12px 0;
+            }
+
+            .store-title {
+              font-size: 18px;
+              font-weight: 900;
+              letter-spacing: 0.5px;
+              text-transform: uppercase;
+              text-align: center;
+              margin-bottom: 2px;
+            }
+            .store-header {
+              font-size: 10px;
+              text-align: center;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+
+            .meta-table {
+              width: 100%;
+              font-size: 11px;
+              margin: 4px 0;
+            }
+            .meta-table td {
+              padding: 2px 0;
+            }
+
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 6px 0;
+            }
+            .items-table th {
+              border-top: 1.5px solid #000;
+              border-bottom: 1.5px solid #000;
+              padding: 5px 0;
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+            }
+
+            .totals-table {
+              width: 100%;
+              font-size: 11px;
+              margin: 4px 0;
+            }
+            .totals-table td {
+              padding: 2px 0;
+            }
+
+            .grand-total-box {
+              border: 2px solid #000;
+              padding: 8px 10px;
+              margin: 10px 0;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              font-size: 14px;
+              font-weight: 900;
+              background: #fff;
+            }
+
             @media print {
-              body { width: 100%; margin: 0; padding: 10px; }
+              html, body {
+                width: 72mm !important;
+                margin: 0 auto !important;
+                padding: 3mm !important;
+                background: #fff !important;
+                color: #000 !important;
+                font-size: 11px !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .no-print { display: none !important; }
             }
           </style>
         </head>
         <body>
-          <div class="text-center font-bold" style="font-size: 18px; text-transform: uppercase;">${restaurantName}</div>
-          <div class="text-center" style="font-size: 10px; margin-top: 4px;">${header}</div>
-          <div class="divider"></div>
+          {/* Header */}
+          <div class="store-title">${restaurantName}</div>
+          <div class="store-header">${header}</div>
+          <div class="dashed-divider"></div>
 
-          <div><strong>ORDER ID:</strong> #${order?.id || 'N/A'}</div>
-          <div><strong>TABLE:</strong> ${order?.tableNumber || `Table ${order?.tableId || '1'}`}</div>
-          <div><strong>DATE:</strong> ${dateStr}</div>
-          ${order?.customerName ? `<div><strong>CUSTOMER:</strong> ${order.customerName}</div>` : ''}
+          {/* Meta Details Table */}
+          <table class="meta-table">
+            <tr>
+              <td><strong>ORDER ID:</strong> #${order?.id || 'N/A'}</td>
+              <td class="text-right"><strong>TABLE:</strong> ${order?.tableNumber || `Table ${order?.tableId || '1'}`}</td>
+            </tr>
+            <tr>
+              <td colspan="2"><strong>DATE:</strong> ${dateStr}</td>
+            </tr>
+            ${order?.customerName ? `<tr><td colspan="2"><strong>CUSTOMER:</strong> ${order.customerName}</td></tr>` : ''}
+          </table>
 
-          <div class="divider"></div>
-
-          <table>
+          {/* Items Table */}
+          <table class="items-table">
             <thead>
-              <tr style="border-bottom: 1px solid #000;">
-                <th style="text-align: left; padding-bottom: 4px;">ITEM</th>
-                <th style="text-align: right; padding-bottom: 4px;">AMOUNT</th>
+              <tr>
+                <th style="width: 55%; text-align: left;">ITEM DISH</th>
+                <th style="width: 15%; text-align: center;">QTY</th>
+                <th style="width: 30%; text-align: right;">TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -112,33 +213,42 @@ export class ReceiptPrinter {
             </tbody>
           </table>
 
-          <div class="divider"></div>
+          <div class="dashed-divider"></div>
 
-          <table>
+          {/* Subtotals Table */}
+          <table class="totals-table">
             <tr>
-              <td>Subtotal</td>
-              <td class="text-right">${currency}${subtotal}</td>
+              <td class="text-left">Items Subtotal</td>
+              <td class="text-right font-bold">${currency}${subtotal}</td>
             </tr>
             <tr>
-              <td>GST Tax (5%)</td>
+              <td class="text-left">GST Tax (5%)</td>
               <td class="text-right">${currency}${tax}</td>
             </tr>
             <tr>
-              <td>Service Charge</td>
+              <td class="text-left">Service Charge</td>
               <td class="text-right">${currency}${serviceCharge}</td>
-            </tr>
-            <tr style="font-size: 14px; font-weight: bold;">
-              <td style="padding-top: 6px;">GRAND TOTAL</td>
-              <td class="text-right" style="padding-top: 6px;">${currency}${grandTotal}</td>
             </tr>
           </table>
 
-          <div class="divider"></div>
-          <div class="text-center font-bold" style="font-size: 13px;">PAYMENT: ${paymentStatus}</div>
-          <div class="text-center" style="font-size: 10px; margin-top: 2px;">Method: ${paymentMethod}</div>
-          <div class="divider"></div>
+          {/* Grand Total Highlight Box */}
+          <div class="grand-total-box">
+            <span>NET TOTAL</span>
+            <span>${currency}${grandTotal}</span>
+          </div>
 
-          <div class="text-center" style="font-size: 10px; text-transform: uppercase;">${footer}</div>
+          <div class="solid-divider"></div>
+
+          {/* Footer Info */}
+          <div class="text-center font-bold" style="font-size: 12px; text-transform: uppercase;">
+            PAYMENT: <span style="text-decoration: underline;">${paymentStatus}</span>
+          </div>
+          <div class="text-center" style="font-size: 10px; margin-top: 2px; color: #333;">
+            METHOD: ${paymentMethod}
+          </div>
+
+          <div class="double-divider"></div>
+          <div class="text-center font-bold" style="font-size: 10px; text-transform: uppercase;">${footer}</div>
         </body>
       </html>
     `;
@@ -158,7 +268,7 @@ export class ReceiptPrinter {
         printWindow.document.write(html);
         printWindow.document.close();
         printWindow.focus();
-        
+
         setTimeout(() => {
           try {
             printWindow.print();
