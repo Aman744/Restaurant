@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight, Download, Calendar } from 'lucide-react';
+import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight, Download, Calendar, FileText } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { db } from '../../lib/firebase.js';
@@ -34,7 +34,7 @@ export const InvoicesHistoryPage: React.FC = () => {
 
   const sidebarItems = [
     { name: 'Settlement Console', path: '/cashier', icon: CreditCard },
-    { name: 'Invoices History', path: '/cashier/invoices', icon: Receipt },
+    { name: 'Invoices History', path: '/cashier/invoices', icon: FileText },
   ];
 
   useEffect(() => {

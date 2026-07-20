@@ -48,7 +48,10 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
       });
   }, [safeOrders]);
 
-  const totalRevenue = safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
+  const totalRevenue = safeOrders
+    .filter((o) => o?.payment?.status === 'paid' || o?.status === 'completed' || o?.status === 'served')
+    .reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0) ||
+    safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
   const preparingOrders = safeOrders.filter((o) => o?.status === 'preparing' || o?.status === 'accepted').length;
   const occupiedTables = safeTables.filter((t) => t?.status === 'occupied').length;
 

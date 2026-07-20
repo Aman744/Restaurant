@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee, FileText } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { useToast } from '../../components/shared/ToastContext';
@@ -27,8 +27,8 @@ export const CashierDashboard: React.FC = () => {
   const tenantId = tenant?.id || 'tenant_dev_123';
 
   const sidebarItems = [
-    { name: 'Pending Bills', path: '/cashier', icon: CreditCard },
-    { name: 'Invoices History', path: '/cashier/invoices', icon: Receipt },
+    { name: 'Settlement Console', path: '/cashier', icon: CreditCard },
+    { name: 'Invoices History', path: '/cashier/invoices', icon: FileText },
   ];
 
   const [orders, setOrders] = useState<Order[]>([]);
