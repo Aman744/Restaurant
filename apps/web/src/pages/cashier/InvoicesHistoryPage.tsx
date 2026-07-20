@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, DollarSign, ArrowUpRight } from 'lucide-react';
+import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { db } from '../../lib/firebase.js';
@@ -199,7 +199,7 @@ export const InvoicesHistoryPage: React.FC = () => {
             <div className="flex justify-between items-center text-zinc-400">
               <span className="text-xs font-bold uppercase tracking-wider">Total Revenue</span>
               <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl">
-                <DollarSign className="h-4 w-4" />
+                <IndianRupee className="h-4 w-4" />
               </div>
             </div>
             <p className="text-2xl font-black text-white">{currencySymbol}{totalSettledRevenue.toFixed(2)}</p>
