@@ -17,7 +17,7 @@ export class ReceiptPrinter {
     const header = storedSettings?.receiptHeader || tenant?.theme?.receiptTheme?.header || 'TAX INVOICE / BILL RECEIPT';
     const footer = storedSettings?.receiptFooter || tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
     const gstinNumber = storedSettings?.gstNumber || '22AAAAA0000A1Z5';
-    const logoUrl = storedSettings?.logoUrl || tenant?.logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80';
+    const logoUrl = storedSettings?.logoUrl || tenant?.logoUrl || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
 
     let safeItems = Array.isArray(order?.items) ? order.items : [];
     if (safeItems.length === 0) {
@@ -191,8 +191,8 @@ export class ReceiptPrinter {
           </style>
         </head>
         <body>
-          <!-- Header Logo with Auto Aspect Ratio Sizing -->
-          ${logoUrl ? `<div class="text-center" style="margin-bottom: 8px;"><img src="${logoUrl}" style="max-height: 48px; max-width: 160px; width: auto; height: auto; object-fit: contain; display: block; margin: 0 auto;" /></div>` : ''}
+          <!-- Header Logo with High-Contrast Crisp Vector Sizing -->
+          ${logoUrl ? `<div class="text-center" style="margin-bottom: 8px;"><img src="${logoUrl}" style="max-height: 55px; max-width: 180px; width: auto; height: auto; object-fit: contain; display: block; margin: 0 auto;" /></div>` : ''}
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
           <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: ${gstinNumber}</div>

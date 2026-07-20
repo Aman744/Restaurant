@@ -23,7 +23,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
   const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');
   const [phone, setPhone] = useState('+91 98765 43210');
   const [address, setAddress] = useState('123 Gourmet Avenue, Food City');
-  const [logoUrl, setLogoUrl] = useState('https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80');
+  const [logoUrl, setLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/3170/3170733.png');
 
   // Receipt Customization
   const [receiptHeader, setReceiptHeader] = useState('Gourmet Dining & QR Bar');
