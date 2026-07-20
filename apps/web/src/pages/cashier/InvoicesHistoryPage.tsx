@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight } from 'lucide-react';
+import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { db } from '../../lib/firebase.js';
@@ -21,6 +21,11 @@ export const InvoicesHistoryPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedPaymentFilter, setSelectedPaymentFilter] = useState<string>('all');
   const [receiptModalOrder, setReceiptModalOrder] = useState<Order | null>(null);
+
+  // View Mode & Pagination state
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(6);
 
   const sidebarItems = [
     { name: 'Settlement Console', path: '/cashier', icon: CreditCard },
@@ -177,6 +182,16 @@ export const InvoicesHistoryPage: React.FC = () => {
     })
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredInvoices.length / pageSize) || 1;
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const paginatedInvoices = filteredInvoices.slice(startIndex, startIndex + pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedPaymentFilter]);
+
   if (loading) {
     return (
       <DashboardLayout title="Settled Invoices History" sidebarItems={sidebarItems}>
@@ -245,7 +260,7 @@ export const InvoicesHistoryPage: React.FC = () => {
         </div>
 
         {/* Filter & Search Toolbar */}
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 border-y border-zinc-900 py-4">
+        <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border-y border-zinc-900 py-4">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
             <input
@@ -257,97 +272,254 @@ export const InvoicesHistoryPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <Filter className="h-4 w-4 text-zinc-500" />
-            {['all', 'cash', 'card', 'upi'].map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setSelectedPaymentFilter(mode)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase transition border ${
-                  selectedPaymentFilter === mode
-                    ? 'bg-emerald-500 text-black border-emerald-600 shadow-md shadow-emerald-500/20'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
+              <Filter className="h-4 w-4 text-zinc-500" />
+              {['all', 'cash', 'card', 'upi'].map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setSelectedPaymentFilter(mode)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold uppercase transition border cursor-pointer ${
+                    selectedPaymentFilter === mode
+                      ? 'bg-emerald-500 text-black border-emerald-600 shadow-md shadow-emerald-500/20'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
+
+            {/* View Mode Toggle & Page Size Selector */}
+            <div className="flex items-center gap-2 border-l border-zinc-850 pl-3">
+              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'grid'
+                      ? 'bg-emerald-500 text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                  title="Grid View"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-emerald-500 text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                  title="List View"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 font-bold focus:outline-none focus:border-emerald-500/40 cursor-pointer"
               >
-                {mode}
-              </button>
-            ))}
+                <option value={6}>6 per page</option>
+                <option value={12}>12 per page</option>
+                <option value={24}>24 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Invoices List Grid */}
+        {/* Invoices Display Section */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Settled Invoices ({filteredInvoices.length})</h3>
+            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">
+              Settled Invoices ({filteredInvoices.length})
+            </h3>
             <span className="text-xs text-zinc-500 font-mono">Sorted chronologically (Newest first)</span>
           </div>
 
           {filteredInvoices.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredInvoices.map((o) => (
-                <div
-                  key={`inv_${o.id}`}
-                  className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-4 hover:border-zinc-700 transition shadow-xl flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-extrabold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-xl">
-                            {o.tableNumber || `Table ${o.tableId || '1'}`}
-                          </span>
-                          <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
-                        </div>
-                        <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-zinc-500" />
-                          Settled: {formatOrderDateTime(o.updatedAt || o.createdAt)}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                        PAID ({o.payment?.method || 'CASH'})
-                      </span>
-                    </div>
-
-                    {/* Itemized Dishes List */}
-                    <div className="space-y-1 text-xs border-b border-zinc-850 pb-3 max-h-36 overflow-y-auto pr-1">
-                      {(o.items || []).map((item) => (
-                        <div key={item.id} className="flex justify-between items-center text-zinc-300">
-                          <span className="font-semibold">{item.quantity}x {item.name}</span>
-                          <span className="text-[10px] font-bold text-zinc-400">
-                            {currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-1 text-xs text-zinc-400 pt-1">
-                      <div className="flex justify-between text-[11px]">
-                        <span>Subtotal:</span>
-                        <span>{currencySymbol}{(o.totals?.subtotal || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px]">
-                        <span>GST Tax:</span>
-                        <span>{currencySymbol}{(o.totals?.tax || 0).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between font-extrabold text-sm text-white pt-2 border-t border-zinc-850">
-                        <span>Grand Total:</span>
-                        <span className="text-emerald-400">{currencySymbol}{(o.totals?.grandTotal || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-zinc-850">
-                    <button
-                      onClick={() => setReceiptModalOrder(o)}
-                      className="w-full py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-750 transition cursor-pointer flex items-center justify-center gap-2"
+            <>
+              {/* GRID VIEW */}
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {paginatedInvoices.map((o) => (
+                    <div
+                      key={`inv_${o.id}`}
+                      className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-4 hover:border-zinc-700 transition shadow-xl flex flex-col justify-between"
                     >
-                      <Printer className="h-4 w-4 text-emerald-400" />
-                      Thermal Tax Receipt
-                    </button>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-extrabold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-xl">
+                                {o.tableNumber || `Table ${o.tableId || '1'}`}
+                              </span>
+                              <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
+                            </div>
+                            <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-zinc-500" />
+                              Settled: {formatOrderDateTime(o.updatedAt || o.createdAt)}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                            PAID ({o.payment?.method || 'CASH'})
+                          </span>
+                        </div>
+
+                        {/* Itemized Dishes List */}
+                        <div className="space-y-1 text-xs border-b border-zinc-850 pb-3 max-h-36 overflow-y-auto pr-1">
+                          {(o.items || []).map((item) => (
+                            <div key={item.id} className="flex justify-between items-center text-zinc-300">
+                              <span className="font-semibold">{item.quantity}x {item.name}</span>
+                              <span className="text-[10px] font-bold text-zinc-400">
+                                {currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="space-y-1 text-xs text-zinc-400 pt-1">
+                          <div className="flex justify-between text-[11px]">
+                            <span>Subtotal:</span>
+                            <span>{currencySymbol}{(o.totals?.subtotal || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span>GST Tax:</span>
+                            <span>{currencySymbol}{(o.totals?.tax || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between font-extrabold text-sm text-white pt-2 border-t border-zinc-850">
+                            <span>Grand Total:</span>
+                            <span className="text-emerald-400">{currencySymbol}{(o.totals?.grandTotal || 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-zinc-850">
+                        <button
+                          onClick={() => setReceiptModalOrder(o)}
+                          className="w-full py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-750 transition cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <Printer className="h-4 w-4 text-emerald-400" />
+                          Thermal Tax Receipt
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* LIST VIEW (TABULAR) */}
+              {viewMode === 'list' && (
+                <div className="border border-zinc-850 bg-zinc-900/40 rounded-3xl overflow-hidden shadow-xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-zinc-300">
+                      <thead className="bg-zinc-900 text-zinc-400 font-extrabold uppercase tracking-wider text-[10px] border-b border-zinc-800">
+                        <tr>
+                          <th className="px-5 py-4">Invoice / Table</th>
+                          <th className="px-5 py-4">Customer</th>
+                          <th className="px-5 py-4">Date & Time</th>
+                          <th className="px-5 py-4">Dishes Summary</th>
+                          <th className="px-5 py-4">Payment Method</th>
+                          <th className="px-5 py-4">Grand Total</th>
+                          <th className="px-5 py-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-850">
+                        {paginatedInvoices.map((o) => (
+                          <tr key={`row_${o.id}`} className="hover:bg-zinc-850/50 transition">
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold bg-zinc-800 text-white px-2.5 py-1 rounded-xl text-xs">
+                                  {o.tableNumber || `Table ${o.tableId || '1'}`}
+                                </span>
+                                <span className="font-mono font-bold text-zinc-300">#{o.id.slice(-6).toUpperCase()}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 font-semibold text-zinc-200">
+                              {o.customerName || 'Guest Customer'}
+                            </td>
+                            <td className="px-5 py-4 font-mono text-[11px] text-zinc-400">
+                              {formatOrderDateTime(o.updatedAt || o.createdAt)}
+                            </td>
+                            <td className="px-5 py-4 text-zinc-300 max-w-xs">
+                              <span className="line-clamp-1 font-medium">
+                                {(o.items || []).map((it) => `${it.quantity}x ${it.name}`).join(', ') || 'Standard Dishes'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <span className="text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                                PAID ({(o.payment?.method || 'CASH').toUpperCase()})
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 font-black text-sm text-emerald-400 font-mono">
+                              {currencySymbol}{(o.totals?.grandTotal || 0).toFixed(2)}
+                            </td>
+                            <td className="px-5 py-4 text-right">
+                              <button
+                                onClick={() => setReceiptModalOrder(o)}
+                                className="py-1.5 px-3 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-[10px] uppercase rounded-xl border border-zinc-750 transition cursor-pointer inline-flex items-center gap-1.5"
+                              >
+                                <Printer className="h-3.5 w-3.5 text-emerald-400" />
+                                Receipt
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {/* PAGINATION FOOTER */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-zinc-900 pt-5">
+                <p className="text-xs text-zinc-400 font-mono">
+                  Showing <strong className="text-white">{startIndex + 1}</strong> -{' '}
+                  <strong className="text-white">{Math.min(startIndex + pageSize, filteredInvoices.length)}</strong> of{' '}
+                  <strong className="text-emerald-400">{filteredInvoices.length}</strong> settled invoices
+                </p>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, validCurrentPage - 1))}
+                    disabled={validCurrentPage === 1}
+                    className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      onClick={() => setCurrentPage(pg)}
+                      className={`h-8 w-8 rounded-xl font-bold text-xs transition cursor-pointer ${
+                        validCurrentPage === pg
+                          ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                          : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-850 hover:text-white border border-zinc-800'
+                      }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage(Math.min(totalPages, validCurrentPage + 1))}
+                    disabled={validCurrentPage === totalPages}
+                    className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-850 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
+                    title="Next Page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="border border-dashed border-zinc-850 py-16 text-center text-zinc-500 rounded-3xl">
               <Receipt className="h-10 w-10 mx-auto text-emerald-500/20 mb-3" />
