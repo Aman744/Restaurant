@@ -204,7 +204,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
                   <img
                     src={logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80'}
                     alt="Brand Logo"
-                    className="h-12 w-12 rounded-2xl object-cover border border-zinc-800 shadow-md bg-zinc-950"
+                    className="h-12 max-h-12 w-auto max-w-[140px] object-contain rounded-xl border border-zinc-800 p-1 bg-zinc-950 shadow-md"
                   />
                   <div className="flex-1 space-y-1">
                     <input
@@ -434,7 +434,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none max-w-sm mx-auto">
                 <div className="text-center font-bold border-b border-black/20 pb-2 space-y-1">
                   {logoUrl && (
-                    <img src={logoUrl} alt="Logo" className="h-10 w-10 mx-auto rounded-full object-cover border border-black/20" />
+                    <img src={logoUrl} alt="Logo" className="max-h-12 max-w-[140px] w-auto h-auto object-contain mx-auto mb-1" />
                   )}
                   <p className="uppercase text-xs tracking-wider font-black">{receiptHeader || 'RESTAURANT NAME'}</p>
                   <p className="text-[10px] font-normal text-zinc-600">{address || 'Store Location Address'}</p>

@@ -191,8 +191,8 @@ export class ReceiptPrinter {
           </style>
         </head>
         <body>
-          <!-- Header Logo & Store Title -->
-          ${logoUrl ? `<div class="text-center" style="margin-bottom: 8px;"><img src="${logoUrl}" style="height: 52px; width: 52px; border-radius: 12px; object-fit: cover; border: 1.5px solid #000; display: block; margin: 0 auto;" /></div>` : ''}
+          <!-- Header Logo with Auto Aspect Ratio Sizing -->
+          ${logoUrl ? `<div class="text-center" style="margin-bottom: 8px;"><img src="${logoUrl}" style="max-height: 48px; max-width: 160px; width: auto; height: auto; object-fit: contain; display: block; margin: 0 auto;" /></div>` : ''}
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
           <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: ${gstinNumber}</div>
