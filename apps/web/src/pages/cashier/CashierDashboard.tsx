@@ -217,7 +217,7 @@ export const CashierDashboard: React.FC = () => {
                 <div
                   key={b.id}
                   onClick={() => setSelectedBill(b)}
-                  className={`border p-5 rounded-2xl cursor-pointer transition-all flex flex-col justify-between h-44 shadow-lg ${
+                  className={`border p-5 rounded-3xl cursor-pointer transition-all flex flex-col justify-between space-y-3 shadow-lg ${
                     selectedBill?.id === b.id
                       ? 'border-emerald-500 bg-emerald-500/10 shadow-emerald-500/10'
                       : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/30'
@@ -238,9 +238,24 @@ export const CashierDashboard: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex justify-between items-end mt-4 pt-3 border-t border-zinc-900">
+                  {/* Itemized Dishes List on Card */}
+                  <div className="space-y-1 my-2 text-xs border-y border-zinc-900/80 py-2.5 max-h-28 overflow-y-auto pr-1">
+                    {(b.rawOrder.items || []).map((item) => (
+                      <div key={item.id} className="flex justify-between items-center text-zinc-300">
+                        <span className="font-semibold text-xs">{item.quantity}x {item.name}</span>
+                        <span className="text-[10px] font-bold text-zinc-400">
+                          {currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    {(!b.rawOrder.items || b.rawOrder.items.length === 0) && (
+                      <p className="text-[10px] text-zinc-500 italic">No items attached</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-end pt-1">
                     <span className="text-xs text-zinc-400 font-medium">Grand Total:</span>
-                    <span className="text-2xl font-black text-emerald-400">{currencySymbol}{b.total.toFixed(2)}</span>
+                    <span className="text-xl font-black text-emerald-400">{currencySymbol}{b.total.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
@@ -269,6 +284,19 @@ export const CashierDashboard: React.FC = () => {
                   <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
                     UNPAID
                   </span>
+                </div>
+
+                {/* Ordered Dishes Itemized List in Settlement Console */}
+                <div className="space-y-2 border-b border-zinc-800 pb-4">
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Ordered Dishes</p>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {(selectedBill.rawOrder.items || []).map((item) => (
+                      <div key={item.id} className="flex justify-between text-xs text-zinc-200">
+                        <span className="font-medium">{item.quantity}x {item.name}</span>
+                        <span className="font-bold text-zinc-300">{currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="space-y-2 border-b border-zinc-800 pb-4 text-sm">
