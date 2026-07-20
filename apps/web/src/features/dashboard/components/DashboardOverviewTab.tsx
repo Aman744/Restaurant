@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles } from 'lucide-react';
+import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles, Eye, X } from 'lucide-react';
 import { RevenueCard } from './RevenueCard';
 import { KitchenLoadCard } from './KitchenLoadCard';
 import { OccupancyCard } from './OccupancyCard';
@@ -19,6 +19,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
   currencySymbol = '₹'
 }) => {
   const [feedViewMode, setFeedViewMode] = useState<'grid' | 'list'>('grid');
+  const [selectedFeedOrder, setSelectedFeedOrder] = useState<Order | null>(null);
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   const safeTables = Array.isArray(tables) ? tables : [];
@@ -180,7 +181,8 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
               return (
                 <div
                   key={order.id}
-                  className={`border bg-zinc-950/80 p-4 rounded-2xl flex flex-col justify-between space-y-4 transition shadow-lg group relative ${
+                  onClick={() => setSelectedFeedOrder(order)}
+                  className={`border bg-zinc-950/80 p-4 rounded-2xl flex flex-col justify-between space-y-4 transition shadow-lg cursor-pointer group relative hover:scale-[1.01] ${
                     isPendingNew
                       ? 'border-amber-500/40 shadow-amber-500/5'
                       : 'border-zinc-800 hover:border-emerald-500/40'
@@ -208,23 +210,30 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                       </span>
                     </div>
 
-                    {/* Items List */}
-                    <div className="bg-zinc-900/60 border border-zinc-850 p-3 rounded-xl space-y-1.5 text-xs">
+                    {/* Detailed Order Items List */}
+                    <div className="bg-zinc-900/70 border border-zinc-850 p-3 rounded-xl space-y-2 text-xs max-h-36 overflow-y-auto">
                       {itemsList.length > 0 ? (
-                        itemsList.slice(0, 3).map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-zinc-300 items-center">
-                            <span className="truncate max-w-[130px] flex items-center gap-1">
-                              <span className="text-emerald-400 font-bold">{item.quantity}x</span>
-                              <span className="truncate">{item.name}</span>
-                            </span>
-                            <span className="text-zinc-500 font-mono text-[10px]">{currencySymbol}{(item.totalPrice || item.unitPrice || 0).toFixed(2)}</span>
+                        itemsList.map((item, idx) => (
+                          <div key={idx} className="space-y-0.5 border-b border-zinc-800/60 pb-1.5 last:border-0 last:pb-0">
+                            <div className="flex justify-between text-zinc-200 items-center">
+                              <span className="truncate max-w-[130px] flex items-center gap-1">
+                                <span className="text-emerald-400 font-extrabold">{item.quantity}x</span>
+                                <span className="truncate font-semibold">{item.name}</span>
+                              </span>
+                              <span className="text-zinc-400 font-mono text-[10px] font-bold">
+                                {currencySymbol}{(item.totalPrice || (item.unitPrice * item.quantity) || 0).toFixed(2)}
+                              </span>
+                            </div>
+                            {item.selectedVariant && (
+                              <p className="text-[10px] text-zinc-500 pl-4 font-sans">Opt: {item.selectedVariant.name}</p>
+                            )}
+                            {item.notes && (
+                              <p className="text-[10px] text-amber-400/90 italic pl-4">"{item.notes}"</p>
+                            )}
                           </div>
                         ))
                       ) : (
                         <p className="text-zinc-500 text-[11px]">No items listed</p>
-                      )}
-                      {itemsList.length > 3 && (
-                        <p className="text-[10px] text-zinc-500 italic pt-0.5">+{itemsList.length - 3} more items...</p>
                       )}
                     </div>
                   </div>
@@ -235,9 +244,10 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                       <Clock className="h-3 w-3 text-zinc-600" />
                       {getTimeAgo(order.createdAt)}
                     </span>
-                    <span className="font-extrabold text-white text-xs">
-                      {currencySymbol}{(order.totals?.grandTotal || 0).toFixed(2)}
-                    </span>
+                    <div className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-bold text-xs">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>{currencySymbol}{(order.totals?.grandTotal || 0).toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -255,25 +265,29 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
         {/* List View Layout */}
         {feedViewMode === 'list' && (
           <div className="divide-y divide-zinc-850">
-            {activeLiveOrders.slice(0, 6).map((order) => {
+            {activeLiveOrders.slice(0, 8).map((order) => {
               const itemsSummary = (order.items || [])
                 .map((i) => `${i.quantity}x ${i.name}`)
                 .join(', ');
 
               return (
-                <div key={order.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div
+                  key={order.id}
+                  onClick={() => setSelectedFeedOrder(order)}
+                  className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:bg-zinc-900/40 px-3 rounded-xl transition cursor-pointer"
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-white text-sm">
                         {order.tableNumber || `Table ${order.tableId}`}
                       </span>
-                      <span className="text-zinc-500 font-mono text-[10px]">#{order.id}</span>
+                      <span className="text-zinc-500 font-mono text-[10px]">#{order.id.slice(0, 8)}</span>
                       <span className="text-[10px] text-zinc-500 flex items-center gap-1">
                         <Clock className="h-3 w-3 text-zinc-600" />
                         {getTimeAgo(order.createdAt)}
                       </span>
                     </div>
-                    <p className="text-zinc-400 text-xs truncate max-w-md">
+                    <p className="text-zinc-300 text-xs truncate max-w-md">
                       {itemsSummary || 'No item details'}
                     </p>
                   </div>
@@ -300,6 +314,73 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Order Item Details Quick Modal */}
+      {selectedFeedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white space-y-5 relative">
+            <button
+              onClick={() => setSelectedFeedOrder(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-zinc-850 pb-4">
+              <div className="h-10 w-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-white">
+                  {selectedFeedOrder.tableNumber || `Table ${selectedFeedOrder.tableId}`}
+                </h3>
+                <p className="text-xs text-zinc-500 font-mono">Order ID: #{selectedFeedOrder.id}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ordered Items Breakdown</h4>
+              <div className="bg-zinc-900/80 border border-zinc-850 rounded-2xl p-4 divide-y divide-zinc-800 space-y-3">
+                {(selectedFeedOrder.items || []).map((item, idx) => (
+                  <div key={idx} className="pt-3 first:pt-0 flex justify-between items-start text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-white text-sm flex items-center gap-2">
+                        <span className="text-emerald-400 font-black">{item.quantity}x</span>
+                        {item.name}
+                      </p>
+                      {item.selectedVariant && (
+                        <p className="text-zinc-400 text-xs pl-6">Variant: {item.selectedVariant.name}</p>
+                      )}
+                      {item.notes && (
+                        <p className="text-amber-400/90 text-xs italic pl-6">Note: "{item.notes}"</p>
+                      )}
+                    </div>
+                    <span className="font-mono text-zinc-200 font-bold text-xs">
+                      {currencySymbol}{(item.totalPrice || (item.unitPrice * item.quantity) || 0).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-850 pt-3 flex justify-between items-center text-xs">
+              <span className="text-zinc-400">Grand Total:</span>
+              <span className="text-lg font-black text-emerald-400">
+                {currencySymbol}{(selectedFeedOrder.totals?.grandTotal || 0).toFixed(2)}
+              </span>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Link
+                to="/admin/orders"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-500/10"
+              >
+                Open Orders Manager <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
