@@ -1,12 +1,12 @@
-import React from 'react';
-import { Trash2, Sparkles, Printer } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, Sparkles, Printer, Download, X } from 'lucide-react';
 import type { Order, OrderStatus } from '@restaurant-qr/core';
 import { OrderService } from '../../../services/OrderService';
-import { ReceiptPrinter } from '../../../utils/ReceiptPrinter';
 import { useToast } from '../../../components/shared/ToastContext';
 import { useOrderStore } from '../../../stores/useOrderStore';
 import { useUserProfile } from '../../../features/auth/context/UserContext';
 import { useConfirm } from '../../../components/shared/ConfirmContext';
+import { useTenant } from '../../../features/auth/context/TenantContext';
 
 interface OrdersTabProps {
   tenantId: string;
@@ -23,8 +23,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
 }) => {
   const { ordersFilter, setOrdersFilter } = useOrderStore();
   const { profile } = useUserProfile();
+  const { tenant } = useTenant();
   const { confirm } = useConfirm();
   const toast = useToast();
+
+  const [receiptModalOrder, setReceiptModalOrder] = useState<Order | null>(null);
 
   const isAdmin = profile?.role === 'restaurant-admin' || profile?.role === 'super-admin';
   const safeOrders = Array.isArray(orders) ? orders : [];
@@ -85,9 +88,59 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
     });
   };
 
-  const handlePrintReceipt = (order: Order) => {
-    ReceiptPrinter.printReceipt(order);
+  const formatOrderDateTime = (dateVal: any): string => {
+    const d = parseDate(dateVal);
+    return d.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
+
+  const handleDownloadSingleInvoice = (order: Order) => {
+    const lines = [
+      `========================================`,
+      `          ${(tenant?.name || 'RESTAURANT POS').toUpperCase()}          `,
+      `       OFFICIAL TAX INVOICE & RECEIPT      `,
+      `========================================`,
+      `Invoice ID: #${order.id}`,
+      `Date/Time:  ${formatOrderDateTime(order.updatedAt || order.createdAt)}`,
+      `Table:      ${order.tableNumber || `Table ${order.tableId || '1'}`}`,
+      `Customer:   ${order.customerName || 'Guest Customer'}`,
+      `Payment:    PAID (${(order.payment?.method || 'CASH').toUpperCase()})`,
+      `----------------------------------------`,
+      `ITEM                     QTY   PRICE    TOTAL`,
+      `----------------------------------------`,
+      ...(order.items || []).map(
+        (it) =>
+          `${(it.name || 'Dish').padEnd(24).slice(0, 24)} ${it.quantity.toString().padStart(3)}  ${(currencySymbol + (it.unitPrice || 0).toFixed(2)).padStart(8)}  ${(currencySymbol + (it.totalPrice || (it.unitPrice || 0) * (it.quantity || 1)).toFixed(2)).padStart(9)}`
+      ),
+      `----------------------------------------`,
+      `Subtotal:       ${currencySymbol}${(order.totals?.subtotal || 0).toFixed(2)}`,
+      `GST Tax (5%):   ${currencySymbol}${(order.totals?.tax || 0).toFixed(2)}`,
+      `Service Charge: ${currencySymbol}${(order.totals?.serviceCharge || 0).toFixed(2)}`,
+      `----------------------------------------`,
+      `GRAND TOTAL:    ${currencySymbol}${(order.totals?.grandTotal || 0).toFixed(2)}`,
+      `========================================`,
+      `     Thank you for dining with us!      `,
+      `========================================`
+    ].join('\n');
+
+    const blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Invoice_${order.id.slice(-6).toUpperCase()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+
 
   const getStatusBadgeStyle = (status: string) => {
     switch (status) {
@@ -252,11 +305,11 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
                   </select>
 
                   <button
-                    onClick={() => handlePrintReceipt(order)}
-                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl transition"
+                    onClick={() => setReceiptModalOrder(order)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 text-xs font-bold rounded-xl border border-zinc-750 transition cursor-pointer"
                   >
                     <Printer className="h-3.5 w-3.5 text-emerald-400" />
-                    Print Receipt
+                    View / Download Invoice
                   </button>
                 </div>
               </div>
@@ -270,6 +323,92 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Common Official Tax Invoice Receipt Modal */}
+      {receiptModalOrder && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-zinc-950 border border-zinc-800 text-zinc-100 max-w-sm w-full rounded-3xl p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setReceiptModalOrder(null)}
+              className="absolute right-4 top-4 text-zinc-400 hover:text-white p-1.5 rounded-full hover:bg-zinc-900 transition cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Thermal Receipt Visual Paper Card */}
+            <div className="bg-white text-black p-6 rounded-2xl shadow-inner font-mono text-xs space-y-4">
+              <div className="text-center space-y-1 border-b border-dashed border-gray-400 pb-3">
+                <h3 className="font-black text-sm uppercase tracking-wide">{tenant?.name || 'RESTAURANT POS'}</h3>
+                <p className="text-[10px] text-gray-600 font-bold uppercase">OFFICIAL TAX INVOICE & RECEIPT</p>
+                <p className="text-[10px] text-gray-500">Invoice: #{receiptModalOrder.id}</p>
+                <p className="text-[10px] text-gray-500">Date/Time: {formatOrderDateTime(receiptModalOrder.updatedAt || receiptModalOrder.createdAt)}</p>
+                <p className="text-[10px] text-gray-500">Table: {receiptModalOrder.tableNumber || `Table ${receiptModalOrder.tableId || '1'}`}</p>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-1.5 border-b border-dashed border-gray-400 pb-3 text-[11px]">
+                <div className="flex justify-between font-bold border-b border-gray-200 pb-1 text-[10px]">
+                  <span>ITEM</span>
+                  <span>QTY x PRICE</span>
+                  <span>TOTAL</span>
+                </div>
+                {(receiptModalOrder.items || []).map((item) => (
+                  <div key={item.id} className="flex justify-between">
+                    <span className="font-medium max-w-[110px] truncate">{item.name}</span>
+                    <span>{item.quantity} x {currencySymbol}{item.unitPrice.toFixed(2)}</span>
+                    <span className="font-bold">{currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Financial Totals */}
+              <div className="space-y-1 border-b border-dashed border-gray-400 pb-3 text-[11px]">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal:</span>
+                  <span>{currencySymbol}{(receiptModalOrder.totals?.subtotal || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>GST Tax (5%):</span>
+                  <span>{currencySymbol}{(receiptModalOrder.totals?.tax || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Service Charge:</span>
+                  <span>{currencySymbol}{(receiptModalOrder.totals?.serviceCharge || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-black text-sm text-black pt-1.5 border-t border-gray-300">
+                  <span>GRAND TOTAL:</span>
+                  <span>{currencySymbol}{(receiptModalOrder.totals?.grandTotal || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Footer Note */}
+              <div className="text-center text-[10px] text-gray-600 space-y-1 pt-1">
+                <p className="font-bold text-black uppercase">PAID VIA {(receiptModalOrder.payment?.method || 'CASH').toUpperCase()}</p>
+                <p>Status: PAID & SETTLED</p>
+                <p className="pt-1 italic font-semibold">Thank you for dining with us!</p>
+              </div>
+            </div>
+
+            {/* Common Action Buttons: Print & Download */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                onClick={() => window.print()}
+                className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-black text-xs uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
+              >
+                <Printer className="h-4 w-4" />
+                Print Receipt
+              </button>
+              <button
+                onClick={() => handleDownloadSingleInvoice(receiptModalOrder)}
+                className="py-2.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-200 font-bold text-xs uppercase rounded-xl border border-zinc-800 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Download className="h-4 w-4 text-emerald-400" />
+                Download Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
