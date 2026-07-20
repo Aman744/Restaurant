@@ -299,9 +299,9 @@ export const MenuTab: React.FC<MenuTabProps> = ({
         )}
       </div>
 
-      {/* 4-Column Clean Grid View Layout (1 Row 4 Cols) */}
+      {/* 3-Column Clean Grid View Layout (1 Row 3 Cols) */}
       {viewMode === 'grid' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMenuItems.map((item) => {
             const isInStock = item.stockStatus === 'in-stock';
 
