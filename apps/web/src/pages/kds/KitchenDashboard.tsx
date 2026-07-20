@@ -739,11 +739,11 @@ export const KitchenDashboard: React.FC = () => {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div>
                           {order.status === 'pending' && (
                             <button
                               onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-lg shadow-emerald-500/10 transition cursor-pointer"
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/10 transition cursor-pointer"
                             >
                               ACCEPT ORDER
                             </button>
@@ -751,21 +751,19 @@ export const KitchenDashboard: React.FC = () => {
                           {order.status === 'preparing' && (
                             <button
                               onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                              className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
+                              className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
                             >
                               MARK READY
                             </button>
                           )}
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
-                            className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-semibold px-2.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="preparing">Preparing</option>
-                            <option value="ready">Ready</option>
-                            <option value="completed">Completed</option>
-                          </select>
+                          {(order.status === 'ready' || order.status === 'completed') && (
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
+                              className="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-zinc-700 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer"
+                            >
+                              COMPLETE TICKET
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
