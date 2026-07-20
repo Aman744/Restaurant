@@ -23,7 +23,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
   const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');
   const [phone, setPhone] = useState('+91 98765 43210');
   const [address, setAddress] = useState('123 Gourmet Avenue, Food City');
-  const [logoUrl, setLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/3170/3170733.png');
+  const [logoUrl, setLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/1046/1046784.png');
 
   // Receipt Customization
   const [receiptHeader, setReceiptHeader] = useState('Gourmet Dining & QR Bar');
@@ -44,7 +44,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     const fetchSettings = async () => {
       setLoading(true);
       try {
-        const defaultBrandLogo = 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+        const defaultBrandLogo = 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png';
         if (isMockMode) {
           const stored = localStorage.getItem(`restaurant_qr_settings_${tenantId}`);
           if (stored) {
@@ -57,7 +57,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               setRestaurantName(parsed.restaurantName || 'Aman\'s Restaurant & Bar');
               setPhone(parsed.phone || '+91 98765 43210');
               setAddress(parsed.address || '123 Gourmet Avenue');
-              const resolvedLogo = (!parsed.logoUrl || parsed.logoUrl.includes('photo-1555396273')) ? defaultBrandLogo : parsed.logoUrl;
+              const resolvedLogo = (!parsed.logoUrl || parsed.logoUrl.includes('photo-1555396273') || parsed.logoUrl.includes('3170733')) ? defaultBrandLogo : parsed.logoUrl;
               setLogoUrl(resolvedLogo);
               setReceiptHeader(parsed.receiptHeader || 'Gourmet Dining & QR Bar');
               setReceiptFooter(parsed.receiptFooter || 'Thank you for dining with us! Please visit again.');
@@ -74,7 +74,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             setRestaurantName(data.restaurantName || 'Aman\'s Restaurant & Bar');
             setPhone(data.phone || '+91 98765 43210');
             setAddress(data.address || '123 Gourmet Avenue');
-            const resolvedLogo = (!data.logoUrl || data.logoUrl.includes('photo-1555396273')) ? defaultBrandLogo : data.logoUrl;
+            const resolvedLogo = (!data.logoUrl || data.logoUrl.includes('photo-1555396273') || data.logoUrl.includes('3170733')) ? defaultBrandLogo : data.logoUrl;
             setLogoUrl(resolvedLogo);
             setReceiptHeader(data.receiptHeader || 'Gourmet Dining & QR Bar');
             setReceiptFooter(data.receiptFooter || 'Thank you!');
