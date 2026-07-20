@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List } from 'lucide-react';
+import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles } from 'lucide-react';
 import { RevenueCard } from './RevenueCard';
 import { KitchenLoadCard } from './KitchenLoadCard';
 import { OccupancyCard } from './OccupancyCard';
@@ -23,11 +23,28 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
   const safeOrders = Array.isArray(orders) ? orders : [];
   const safeTables = Array.isArray(tables) ? tables : [];
 
-  // Filter feed to show active new/ongoing orders only (excluding completed/archived)
+  const parseDate = (val: any): Date => {
+    if (!val) return new Date();
+    if (val instanceof Date) return val;
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+    const parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  };
+
+  // Filter feed to show active new/ongoing orders sorted with newest pending orders FIRST
   const activeLiveOrders = useMemo(() => {
-    return safeOrders.filter(
-      (o) => o?.status && o.status !== 'completed' && o.status !== 'archived'
-    );
+    return safeOrders
+      .filter((o) => o?.status && o.status !== 'completed' && o.status !== 'archived')
+      .sort((a, b) => {
+        // 1. Pending (newly placed) orders first
+        if (a.status === 'pending' && b.status !== 'pending') return -1;
+        if (a.status !== 'pending' && b.status === 'pending') return 1;
+        // 2. Sort by newest created timestamp
+        const timeA = parseDate(a.createdAt).getTime();
+        const timeB = parseDate(b.createdAt).getTime();
+        return timeB - timeA;
+      });
   }, [safeOrders]);
 
   const totalRevenue = safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
@@ -37,7 +54,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
   const getStatusBadgeClass = (status?: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        return 'bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse';
       case 'accepted':
       case 'preparing':
         return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
@@ -49,15 +66,6 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
       default:
         return 'bg-zinc-800 text-zinc-300 border-zinc-700';
     }
-  };
-
-  const parseDate = (val: any): Date => {
-    if (!val) return new Date();
-    if (val instanceof Date) return val;
-    if (typeof val.toDate === 'function') return val.toDate();
-    if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
-    const parsed = new Date(val);
-    return isNaN(parsed.getTime()) ? new Date() : parsed;
   };
 
   const getTimeAgo = (dateVal?: any) => {
@@ -121,8 +129,9 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
           <div className="flex items-center gap-2">
             <ShoppingBag className="h-4 w-4 text-emerald-400" />
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Operational Feed</h3>
-            <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/20">
-              {activeLiveOrders.length} Active Orders
+            <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              {activeLiveOrders.length} New & Active
             </span>
           </div>
 
@@ -166,20 +175,33 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {activeLiveOrders.slice(0, 8).map((order) => {
               const itemsList = order.items || [];
+              const isPendingNew = order.status === 'pending';
 
               return (
                 <div
                   key={order.id}
-                  className="border border-zinc-800 bg-zinc-950/80 p-4 rounded-2xl flex flex-col justify-between space-y-4 hover:border-emerald-500/40 transition shadow-lg group"
+                  className={`border bg-zinc-950/80 p-4 rounded-2xl flex flex-col justify-between space-y-4 transition shadow-lg group relative ${
+                    isPendingNew
+                      ? 'border-amber-500/40 shadow-amber-500/5'
+                      : 'border-zinc-800 hover:border-emerald-500/40'
+                  }`}
                 >
                   <div className="space-y-3">
                     {/* Header */}
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="font-black text-white text-base block group-hover:text-emerald-400 transition">
-                          {order.tableNumber || `Table ${order.tableId}`}
-                        </span>
-                        <span className="text-zinc-500 font-mono text-[10px]">ID: #{order.id.slice(0, 10)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-white text-base block group-hover:text-emerald-400 transition">
+                            {order.tableNumber || `Table ${order.tableId}`}
+                          </span>
+                          {isPendingNew && (
+                            <span className="flex items-center gap-0.5 text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              NEW
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-zinc-500 font-mono text-[10px]">ID: #{order.id.slice(0, 8)}</span>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase font-extrabold border ${getStatusBadgeClass(order.status)}`}>
                         {order.status || 'pending'}
@@ -187,13 +209,13 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                     </div>
 
                     {/* Items List */}
-                    <div className="bg-zinc-900/60 border border-zinc-850 p-3 rounded-xl space-y-1 text-xs">
+                    <div className="bg-zinc-900/60 border border-zinc-850 p-3 rounded-xl space-y-1.5 text-xs">
                       {itemsList.length > 0 ? (
                         itemsList.slice(0, 3).map((item, idx) => (
-                          <div key={idx} className="flex justify-between text-zinc-300">
-                            <span className="truncate max-w-[130px]">
-                              <span className="text-emerald-400 font-bold mr-1">{item.quantity}x</span>
-                              {item.name}
+                          <div key={idx} className="flex justify-between text-zinc-300 items-center">
+                            <span className="truncate max-w-[130px] flex items-center gap-1">
+                              <span className="text-emerald-400 font-bold">{item.quantity}x</span>
+                              <span className="truncate">{item.name}</span>
                             </span>
                             <span className="text-zinc-500 font-mono text-[10px]">{currencySymbol}{(item.totalPrice || item.unitPrice || 0).toFixed(2)}</span>
                           </div>
