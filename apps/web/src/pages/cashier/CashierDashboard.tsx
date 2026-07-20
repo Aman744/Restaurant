@@ -179,6 +179,8 @@ export const CashierDashboard: React.FC = () => {
     if (!selectedBill) return;
 
     try {
+      const tableId = selectedBill.rawOrder.tableId;
+
       if (isMockMode) {
         const stored = localStorage.getItem('restaurant_qr_mock_orders_db');
         if (stored) {
@@ -200,8 +202,23 @@ export const CashierDashboard: React.FC = () => {
             return o;
           });
           localStorage.setItem('restaurant_qr_mock_orders_db', JSON.stringify(updated));
-          window.dispatchEvent(new Event('storage'));
         }
+
+        if (tableId) {
+          const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
+          if (cachedTables) {
+            try {
+              const tablesList = JSON.parse(cachedTables);
+              const updatedTables = tablesList.map((t: any) =>
+                t.id === tableId || t.number === selectedBill.tableNumber
+                  ? { ...t, status: 'cleaning' }
+                  : t
+              );
+              localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(updatedTables));
+            } catch (e) {}
+          }
+        }
+        window.dispatchEvent(new Event('storage'));
       } else {
         await updateDoc(doc(db, 'tenants', tenantId, 'orders', billId), {
           status: 'completed',
@@ -210,6 +227,12 @@ export const CashierDashboard: React.FC = () => {
           'payment.amountPaid': selectedBill.total,
           updatedAt: new Date()
         });
+
+        if (tableId) {
+          try {
+            await updateDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: 'cleaning' });
+          } catch (err) {}
+        }
       }
 
       toast.success(`Bill for ${selectedBill.tableNumber} settled successfully via ${paymentMode.toUpperCase()}!`);
