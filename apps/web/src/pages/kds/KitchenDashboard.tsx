@@ -383,7 +383,10 @@ export const KitchenDashboard: React.FC = () => {
         priority: safeItems.some((it) => it.notes)
       };
     })
-    .filter((o) => o.items.length > 0 && o.status !== 'completed' && o.status !== 'archived' && o.status !== 'ready');
+    .filter((o) => {
+      const allItemsReady = o.items.length > 0 && o.items.every(i => i.status === 'ready' || i.status === 'served');
+      return o.items.length > 0 && !allItemsReady && o.status !== 'completed' && o.status !== 'archived' && o.status !== 'ready';
+    });
 
   // Completed Kitchen Orders Section (Fulfilled Prep History)
   const completedKdsOrders: KDSOrder[] = orders
@@ -421,7 +424,10 @@ export const KitchenDashboard: React.FC = () => {
         priority: false
       };
     })
-    .filter((o) => o.status === 'ready' || o.status === 'completed' || o.status === 'served');
+    .filter((o) => {
+      const allItemsReady = o.items.length > 0 && o.items.every(i => i.status === 'ready' || i.status === 'served');
+      return o.status === 'ready' || o.status === 'completed' || o.status === 'served' || allItemsReady;
+    });
 
   const categoriesList = ['All Categories', ...Array.from(new Set(menuItems.map((item) => item.categoryId).filter(Boolean)))];
 
@@ -739,7 +745,7 @@ export const KitchenDashboard: React.FC = () => {
                           </span>
                         </div>
 
-                        <div>
+                        <div className="flex items-center gap-2">
                           {order.status === 'pending' && (
                             <button
                               onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
@@ -749,12 +755,21 @@ export const KitchenDashboard: React.FC = () => {
                             </button>
                           )}
                           {order.status === 'preparing' && (
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                              className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
-                            >
-                              MARK READY
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                                className="p-2 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl transition cursor-pointer"
+                                title="Reset to Pending"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
+                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
+                              >
+                                MARK READY
+                              </button>
+                            </div>
                           )}
                           {(order.status === 'ready' || order.status === 'completed') && (
                             <button
