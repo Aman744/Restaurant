@@ -12,14 +12,73 @@ import {
   Plus,
   Minus,
   Search,
-  Check,
-  ChevronRight,
   Clock,
-  X
+  X,
+  ShoppingBag,
+  CheckCircle2
 } from 'lucide-react';
 
 const MOCK_MENU_KEY = 'restaurant_qr_mock_menu_db';
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
+
+const DEFAULT_SAMPLE_MENU: MenuItem[] = [
+  {
+    id: 'item_01',
+    tenantId: 'tenant_dev_123',
+    categoryId: 'mains',
+    name: 'Truffle Mushroom Burger',
+    description: 'Artisanal brioche bun, black truffle aioli, aged cheddar & wild mushrooms',
+    price: 450,
+    images: ['https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80'],
+    dietaryTags: ['veg'],
+    allergens: ['gluten', 'dairy'],
+    stockStatus: 'in-stock',
+    preparationTime: 12,
+    isActive: true
+  },
+  {
+    id: 'item_02',
+    tenantId: 'tenant_dev_123',
+    categoryId: 'pizza',
+    name: 'Wood-Fired Margherita Pizza',
+    description: 'San Marzano tomato sauce, fresh mozzarella di bufala & sweet basil',
+    price: 520,
+    images: ['https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80'],
+    dietaryTags: ['veg'],
+    allergens: ['gluten', 'dairy'],
+    stockStatus: 'in-stock',
+    preparationTime: 15,
+    isActive: true
+  },
+  {
+    id: 'item_03',
+    tenantId: 'tenant_dev_123',
+    categoryId: 'mains',
+    name: 'Paneer Butter Masala & Naan',
+    description: 'Cottage cheese cubes simmered in rich velvety tomato cashew gravy',
+    price: 380,
+    images: ['https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80'],
+    dietaryTags: ['veg'],
+    allergens: ['dairy', 'nuts'],
+    stockStatus: 'in-stock',
+    preparationTime: 10,
+    isActive: true
+  },
+  {
+    id: 'item_04',
+    tenantId: 'tenant_dev_123',
+    categoryId: 'drinks',
+    name: 'Fresh Mint Lime Soda',
+    description: 'Sparkling mineral soda with freshly squeezed lime and crushed mint leaves',
+    price: 120,
+    images: ['https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80'],
+    dietaryTags: ['vegan'],
+    allergens: [],
+    stockStatus: 'in-stock',
+    preparationTime: 5,
+    isActive: true
+  }
+];
 
 interface CartItem {
   menuItem: MenuItem;
@@ -32,7 +91,7 @@ export const CustomerMenu: React.FC = () => {
   const toast = useToast();
 
   // Database / state values
-  const [restaurantName, setRestaurantName] = useState('Gourmet Restaurant');
+  const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,46 +108,52 @@ export const CustomerMenu: React.FC = () => {
   // Post-order tracking states
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [trackedOrder, setTrackedOrder] = useState<Order | null>(null);
-  const [tableError, setTableError] = useState(false);
 
-  const [tableName, setTableName] = useState(() => {
-    const match = tableId.match(/\d+$/);
-    return match ? `Table ${parseInt(match[0])}` : 'Table';
-  });
+  const formatTableName = (tId: string) => {
+    const match = tId.match(/\d+$/);
+    if (match) {
+      return `Table ${parseInt(match[0], 10)}`;
+    }
+    return `Table ${tId.replace(/^table_|^tb_/, '').toUpperCase()}`;
+  };
+
+  const [tableName, setTableName] = useState(() => formatTableName(tableId));
 
   // Fetch restaurant details and menu items
   useEffect(() => {
     let active = true;
 
+    setTableName(formatTableName(tableId));
+
     if (isMockMode) {
       // Load mock menu
       const cached = localStorage.getItem(MOCK_MENU_KEY);
       if (cached && active) {
-        setMenuItems(JSON.parse(cached));
+        const parsed = JSON.parse(cached);
+        setMenuItems(parsed.length > 0 ? parsed : DEFAULT_SAMPLE_MENU);
+      } else if (active) {
+        setMenuItems(DEFAULT_SAMPLE_MENU);
       }
+
       // Load mock table number
       const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
-      let foundMock = false;
       if (cachedTables) {
-        const tablesList = JSON.parse(cachedTables);
-        const matchTable = tablesList.find((t: any) => t.id === tableId);
-        if (matchTable && matchTable.number) {
-          if (active) {
+        try {
+          const tablesList = JSON.parse(cachedTables);
+          const matchTable = tablesList.find((t: any) => t.id === tableId);
+          if (matchTable && matchTable.number && active) {
             setTableName(matchTable.number);
-            foundMock = true;
           }
-        }
+        } catch (e) {}
       }
-      if (!foundMock && active) {
-        setTableError(true);
-      }
-      setRestaurantName('Mock Bistro & Bar');
+
+      setRestaurantName('Aman\'s Restaurant & Bar');
       setLoading(false);
     } else {
       // 1. Fetch Tenant Name
       getDoc(doc(db, 'tenants', tenantId)).then((snap: any) => {
         if (snap.exists() && active) {
-          setRestaurantName(snap.data().name || 'Gourmet Restaurant');
+          setRestaurantName(snap.data().name || 'Aman\'s Restaurant & Bar');
         }
       });
 
@@ -96,28 +161,21 @@ export const CustomerMenu: React.FC = () => {
       const menuCol = collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter);
       const unsub = onSnapshot(menuCol, (snap: any) => {
         if (active) {
-          setMenuItems(snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive));
+          const items = snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive);
+          setMenuItems(items.length > 0 ? items : DEFAULT_SAMPLE_MENU);
           setLoading(false);
         }
       });
 
       // 3. Fetch Table details
       getDoc(doc(db, 'tenants', tenantId, 'tables', tableId)).then((snap: any) => {
-        if (active) {
-          if (snap.exists()) {
-            const tData = snap.data();
-            if (tData?.number) {
-              setTableName(tData.number);
-            } else {
-              setTableError(true);
-            }
-          } else {
-            setTableError(true);
+        if (active && snap.exists()) {
+          const tData = snap.data();
+          if (tData?.number) {
+            setTableName(tData.number);
           }
         }
-      }).catch(() => {
-        if (active) setTableError(true);
-      });
+      }).catch(() => {});
 
       return () => {
         active = false;
@@ -128,75 +186,84 @@ export const CustomerMenu: React.FC = () => {
 
   // Track placed order status in real time
   useEffect(() => {
-    if (!placedOrderId || isMockMode) return;
+    if (!placedOrderId) return;
+    let active = true;
 
-    const orderDoc = doc(db, 'tenants', tenantId, 'orders', placedOrderId);
-    const unsub = onSnapshot(orderDoc, (snap: any) => {
-      if (snap.exists()) {
-        const orderData = snap.data();
-        // Load items subcollection too
-        const itemsCol = collection(db, 'tenants', tenantId, 'orders', placedOrderId, 'order_items');
-        onSnapshot(itemsCol, (itemsSnap: any) => {
-          const itemsList = itemsSnap.docs.map((it: any) => ({ id: it.id, ...it.data() }));
-          setTrackedOrder({
-            id: snap.id,
-            ...orderData,
-            items: itemsList
-          } as any);
-        });
-      }
-    });
-
-    return () => unsub();
+    if (isMockMode) {
+      const interval = setInterval(() => {
+        const cached = localStorage.getItem(MOCK_ORDERS_KEY);
+        if (cached && active) {
+          const allOrders = JSON.parse(cached);
+          const match = allOrders.find((o: any) => o.id === placedOrderId);
+          if (match) setTrackedOrder(match);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      const unsub = onSnapshot(doc(db, 'tenants', tenantId, 'orders', placedOrderId), (snap) => {
+        if (snap.exists() && active) {
+          setTrackedOrder({ id: snap.id, ...snap.data() } as Order);
+        }
+      });
+      return () => unsub();
+    }
   }, [placedOrderId, tenantId, isMockMode]);
-
-  // Derived menu categories
-  const categories = ['all', ...Array.from(new Set(menuItems.map(i => i.categoryId).filter(Boolean)))];
-
-  // Filtered menu list
-  const filteredItems = menuItems.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          item.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || item.categoryId === selectedCategory;
-    const matchesDiet = !vegOnly || item.dietaryTags.includes('veg') || item.dietaryTags.includes('vegan');
-    return matchesSearch && matchesCategory && matchesDiet;
-  });
 
   // Cart operations
   const addToCart = (item: MenuItem) => {
-    const existing = cart.find(c => c.menuItem.id === item.id);
-    if (existing) {
-      setCart(cart.map(c => c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
-    } else {
-      setCart([...cart, { menuItem: item, quantity: 1 }]);
-    }
+    setCart((prev) => {
+      const existing = prev.find((c) => c.menuItem.id === item.id);
+      if (existing) {
+        return prev.map((c) =>
+          c.menuItem.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
+        );
+      }
+      return [...prev, { menuItem: item, quantity: 1 }];
+    });
+    toast.success(`Added ${item.name} to cart!`);
   };
 
-  const removeFromCart = (item: MenuItem) => {
-    const existing = cart.find(c => c.menuItem.id === item.id);
-    if (existing && existing.quantity > 1) {
-      setCart(cart.map(c => c.menuItem.id === item.id ? { ...c, quantity: c.quantity - 1 } : c));
-    } else {
-      setCart(cart.filter(c => c.menuItem.id !== item.id));
-    }
+  const updateQuantity = (itemId: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((c) => {
+          if (c.menuItem.id === itemId) {
+            const newQty = c.quantity + delta;
+            return newQty > 0 ? { ...c, quantity: newQty } : null;
+          }
+          return c;
+        })
+        .filter(Boolean) as CartItem[]
+    );
   };
 
-  const getCartQuantity = (itemId: string) => {
-    return cart.find(c => c.menuItem.id === itemId)?.quantity || 0;
-  };
-
-  const cartSubtotal = cart.reduce((sum, c) => sum + (c.menuItem.price * c.quantity), 0);
-  const gstRate = 0.05; // 5% GST
-  const serviceChargeRate = 0.10; // 10% Service Charge
-  const tax = cartSubtotal * gstRate;
-  const serviceCharge = cartSubtotal * serviceChargeRate;
+  const cartSubtotal = cart.reduce((sum, c) => sum + c.menuItem.price * c.quantity, 0);
+  const tax = cartSubtotal * 0.05;
+  const serviceCharge = cartSubtotal * 0.05;
   const cartTotal = cartSubtotal + tax + serviceCharge;
+  const totalCartCount = cart.reduce((sum, c) => sum + c.quantity, 0);
 
-  // Submit Order logic
+  // Filter menu items
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (vegOnly && !item.dietaryTags.includes('veg') && !item.dietaryTags.includes('vegan')) {
+      return false;
+    }
+    if (selectedCategory !== 'all' && item.categoryId !== selectedCategory) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return (
+        item.name.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
-    
-    const customerId = `cust_${Math.floor(Math.random() * 100000)}`;
+
     const orderId = `ord_${Math.floor(Math.random() * 900000 + 100000)}`;
 
     const newOrderItems: OrderItem[] = cart.map((c) => ({
@@ -215,7 +282,7 @@ export const CustomerMenu: React.FC = () => {
       tenantId,
       tableId,
       tableNumber: tableName,
-      customerId,
+      customerId: `cust_${Date.now()}`,
       customerName: customerName.trim() || 'Guest Customer',
       status: 'pending' as OrderStatus,
       kitchenStationStatus: { main: 'pending' },
@@ -235,7 +302,6 @@ export const CustomerMenu: React.FC = () => {
     };
 
     try {
-      // Transition table status to occupied on order submission
       if (isMockMode) {
         const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
         if (cachedTables) {
@@ -249,43 +315,32 @@ export const CustomerMenu: React.FC = () => {
           } catch (e) {}
         }
 
-        // Save to mock storage
         const cached = localStorage.getItem(MOCK_ORDERS_KEY);
         const existingOrders = cached ? JSON.parse(cached) : [];
         const fullMockOrder: Order = {
           ...orderPayload,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          items: newOrderItems
+          updatedAt: new Date()
         };
         existingOrders.push(fullMockOrder);
         localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(existingOrders));
-        
-        // Mock live update
         setTrackedOrder(fullMockOrder);
       } else {
-        // Save to live Firestore batch-style
-        // Write header
         await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), {
           ...orderPayload,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
 
-        // Write subcollection items
         for (const item of newOrderItems) {
           await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId, 'order_items', item.id), item);
         }
 
-        // Auto-transition table status in Firestore
         try {
           await setDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: 'occupied' }, { merge: true });
-        } catch (err) {
-          console.error('Failed to auto-occupy table in Firestore:', err);
-        }
+        } catch (err) {}
       }
 
-      // Success actions
       confetti({
         particleCount: 150,
         spread: 80,
@@ -300,323 +355,213 @@ export const CustomerMenu: React.FC = () => {
     }
   };
 
-  if (tableError) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white font-sans flex flex-col items-center justify-center p-6 text-center">
-        <div className="h-16 w-16 bg-red-500/10 border border-red-500/20 text-red-500 rounded-full flex items-center justify-center mb-6">
-          <X className="h-8 w-8" />
-        </div>
-        <h2 className="text-lg font-bold text-white uppercase tracking-wider">Invalid Table QR Code</h2>
-        <p className="text-xs text-zinc-400 max-w-xs mt-3 leading-relaxed">
-          This QR code points to a table ID that does not exist or has been decommissioned. Please contact restaurant staff to place your order.
-        </p>
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white space-y-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+        <p className="text-xs font-semibold text-zinc-400">Opening Digital Menu...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans pb-28">
-      {/* 1. Header Hero Panel */}
-      <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900 via-zinc-950 to-zinc-950 border-b border-zinc-900 px-5 pt-8 pb-6">
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
-              {tableName}
-            </span>
-            <h1 className="text-xl font-extrabold text-white tracking-tight mt-1.5">{restaurantName}</h1>
-            <p className="text-xs text-zinc-500">Scan verified • Contactless Table Ordering</p>
-          </div>
-          <div className="h-10 w-10 border border-zinc-800 bg-zinc-900/40 rounded-xl flex items-center justify-center text-zinc-300">
-            <Utensils className="h-5 w-5 text-emerald-400" />
-          </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-28">
+      {/* Top Header Banner */}
+      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-850 px-4 py-3.5 flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-extrabold text-white flex items-center gap-2">
+            <Utensils className="h-4 w-4 text-emerald-400" />
+            {restaurantName}
+          </h1>
+          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full inline-block mt-0.5">
+            {tableName} • QR Ordering Active
+          </span>
         </div>
 
-        {/* Search and Filters */}
-        <div className="mt-6 flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+        {totalCartCount > 0 && (
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition"
+          >
+            <ShoppingBag className="h-4 w-4" />
+            <span>Cart ({totalCartCount})</span>
+          </button>
+        )}
+      </header>
+
+      {/* Main Content Area */}
+      <main className="max-w-3xl mx-auto px-4 py-5 space-y-5">
+        {/* Track Active Order Banner */}
+        {placedOrderId && (
+          <div className="border border-emerald-500/30 bg-emerald-500/10 p-4 rounded-2xl space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4" />
+                Order Placed Successfully!
+              </span>
+              <span className="text-xs font-mono text-zinc-400">ID: #{placedOrderId}</span>
+            </div>
+            <p className="text-xs text-zinc-300">
+              Status:{' '}
+              <strong className="text-emerald-400 uppercase">
+                {trackedOrder?.status || 'Sent to Kitchen'}
+              </strong>
+            </p>
+          </div>
+        )}
+
+        {/* Search & Category Filter Bar */}
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Search dishes..."
+              placeholder="Search delicious dishes, drinks, or desserts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border border-zinc-850 bg-zinc-900/40 pl-9 pr-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/30 rounded-xl placeholder-zinc-500"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500/40"
             />
           </div>
-          <button
-            onClick={() => setVegOnly(!vegOnly)}
-            className={`px-3 py-2 border rounded-xl text-xs font-semibold flex items-center gap-1 transition ${
-              vegOnly 
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                : 'border-zinc-850 bg-zinc-900/20 text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${vegOnly ? 'bg-emerald-400' : 'bg-zinc-650'}`} />
-            Veg Only
-          </button>
-        </div>
-      </div>
 
-      {/* 2. Track Order Screen Overlay (If order placed) */}
-      {placedOrderId && (
-        <div className="max-w-md mx-auto p-5 mt-6 space-y-6">
-          <div className="border border-emerald-500/20 bg-emerald-500/5 p-6 rounded-2xl text-center space-y-3 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-24 h-24 bg-emerald-500/5 blur-2xl rounded-full" />
-            <div className="h-12 w-12 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
-              <Check className="h-6 w-6" />
-            </div>
-            <h2 className="text-lg font-bold text-white">Order Sent to Kitchen!</h2>
-            <p className="text-xs text-zinc-400">Order ID: <span className="font-mono text-zinc-300 font-bold">#{placedOrderId}</span></p>
-            
-            <div className="h-px bg-zinc-900/60 my-4" />
-
-            <div className="space-y-1">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-extrabold">Live Kitchen Status</span>
-              <h3 className="text-base font-bold text-emerald-400 uppercase tracking-widest mt-0.5 animate-pulse">
-                {trackedOrder?.status || 'pending'}
-              </h3>
-            </div>
-          </div>
-
-          <div className="border border-zinc-900 bg-zinc-900/30 p-5 rounded-2xl space-y-4">
-            <h3 className="text-xs uppercase tracking-wider font-bold text-zinc-400">Order Details</h3>
-            <div className="divide-y divide-zinc-900/60">
-              {trackedOrder?.items?.map((item) => (
-                <div key={item.id} className="py-2.5 flex justify-between text-xs">
-                  <div>
-                    <span className="font-bold text-zinc-200">{item.name}</span>
-                    <span className="text-zinc-500 ml-1.5">x{item.quantity}</span>
-                  </div>
-                  <span className="font-bold text-zinc-300">₹{item.totalPrice.toFixed(2)}</span>
-                </div>
-              )) || (
-                cart.map((c) => (
-                  <div key={c.menuItem.id} className="py-2.5 flex justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-zinc-200">{c.menuItem.name}</span>
-                      <span className="text-zinc-500 ml-1.5">x{c.quantity}</span>
-                    </div>
-                    <span className="font-bold text-zinc-300">₹{(c.menuItem.price * c.quantity).toFixed(2)}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-zinc-900 flex justify-between items-center">
-              <span className="text-xs text-zinc-400 font-semibold">Grand Total:</span>
-              <span className="text-sm font-extrabold text-white">
-                ₹{(trackedOrder?.totals?.grandTotal || cartTotal).toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setPlacedOrderId(null)}
-            className="w-full py-3 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold uppercase tracking-wider rounded-xl transition border border-zinc-800"
-          >
-            Order Something Else
-          </button>
-        </div>
-      )}
-
-      {/* 3. Catalog Screen */}
-      {!placedOrderId && (
-        <div className="max-w-md mx-auto px-5 pt-6 space-y-6">
-          {/* Categories Carousel */}
-          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-            {categories.map((cat) => (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {['all', 'mains', 'pizza', 'drinks', 'desserts'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 border text-xs font-bold uppercase tracking-wider rounded-xl transition shrink-0 ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold capitalize transition border ${
                   selectedCategory === cat
-                    ? 'bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
-                    : 'border-zinc-900 bg-zinc-900/30 text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
                 }`}
               >
                 {cat}
               </button>
             ))}
+            <button
+              onClick={() => setVegOnly(!vegOnly)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                vegOnly
+                  ? 'bg-emerald-500 text-white border-emerald-500'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+              }`}
+            >
+              🌱 Veg Only
+            </button>
           </div>
+        </div>
 
-          {/* Catalog Listing */}
-          {loading ? (
-            <div className="flex h-32 items-center justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+        {/* Menu Catalog Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {filteredMenuItems.map((item) => (
+            <div
+              key={item.id}
+              className="border border-zinc-850 bg-zinc-900/60 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-zinc-750 transition shadow-lg"
+            >
+              <div className="space-y-2">
+                {item.images && item.images[0] && (
+                  <img
+                    src={item.images[0]}
+                    alt={item.name}
+                    className="w-full h-36 object-cover rounded-xl border border-zinc-800"
+                  />
+                )}
+                <div className="flex justify-between items-start">
+                  <h3 className="font-extrabold text-white text-sm">{item.name}</h3>
+                  <span className="font-black text-emerald-400 text-sm">₹{item.price}</span>
+                </div>
+                <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{item.description}</p>
+              </div>
+
+              <div className="pt-2 flex justify-between items-center border-t border-zinc-850">
+                <span className="text-[10px] text-zinc-500 font-semibold flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {item.preparationTime || 10} mins
+                </span>
+                <button
+                  onClick={() => addToCart(item)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-500/10 transition"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Dish
+                </button>
+              </div>
             </div>
-          ) : filteredItems.length === 0 ? (
-            <div className="py-12 text-center text-zinc-500 text-xs">
-              No dishes found matching filters.
+          ))}
+        </div>
+      </main>
+
+      {/* Cart Drawer Modal */}
+      {isCartOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4">
+          <div className="w-full max-w-lg border border-zinc-800 bg-zinc-950 p-6 rounded-t-3xl sm:rounded-3xl space-y-5 text-white shadow-2xl relative">
+            <button
+              onClick={() => setIsCartOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
+              <ShoppingBag className="h-5 w-5 text-emerald-400" />
+              <h3 className="text-base font-extrabold text-white">Your Table Order Summary</h3>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredItems.map((item) => (
-                <div key={item.id} className="border border-zinc-900 bg-zinc-900/20 p-4 rounded-2xl flex items-center justify-between gap-4 relative group">
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-                        item.dietaryTags.includes('veg') || item.dietaryTags.includes('vegan') 
-                          ? 'bg-emerald-500' 
-                          : 'bg-rose-500'
-                      }`} />
-                      <h4 className="font-bold text-sm text-white truncate">{item.name}</h4>
-                    </div>
-                    <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">{item.description}</p>
-                    
-                    <div className="flex gap-4 items-center pt-1.5">
-                      <span className="font-extrabold text-zinc-300 text-sm">₹{item.price.toFixed(2)}</span>
-                      <span className="text-[10px] text-zinc-500 flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {item.preparationTime} mins
-                      </span>
-                    </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] text-zinc-400 font-semibold uppercase">Your Name (Optional)</label>
+              <input
+                type="text"
+                placeholder="Enter customer name..."
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500/40"
+              />
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto divide-y divide-zinc-850">
+              {cart.map((c) => (
+                <div key={c.menuItem.id} className="pt-3 first:pt-0 flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-sm text-white">{c.menuItem.name}</h4>
+                    <span className="text-xs text-zinc-400">₹{c.menuItem.price} each</span>
                   </div>
-
-                  {/* Add / Quantity selector */}
-                  <div className="shrink-0">
-                    {getCartQuantity(item.id) === 0 ? (
-                      <button
-                        onClick={() => addToCart(item)}
-                        className="h-9 w-9 border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 text-emerald-400 hover:text-emerald-300 rounded-xl flex items-center justify-center shadow-lg transition duration-200"
-                      >
-                        <Plus className="h-4 w-4" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-2 py-1 rounded-xl">
+                      <button onClick={() => updateQuantity(c.menuItem.id, -1)} className="text-zinc-400 hover:text-white">
+                        <Minus className="h-3.5 w-3.5" />
                       </button>
-                    ) : (
-                      <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-lg h-9">
-                        <button
-                          onClick={() => removeFromCart(item)}
-                          className="px-2.5 text-zinc-500 hover:text-zinc-300 h-full flex items-center"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="px-1 text-xs font-bold text-white w-5 text-center">
-                          {getCartQuantity(item.id)}
-                        </span>
-                        <button
-                          onClick={() => addToCart(item)}
-                          className="px-2.5 text-zinc-500 hover:text-zinc-300 h-full flex items-center"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
+                      <span className="font-bold text-xs">{c.quantity}</span>
+                      <button onClick={() => updateQuantity(c.menuItem.id, 1)} className="text-zinc-400 hover:text-white">
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <span className="font-bold text-xs text-emerald-400 font-mono">
+                      ₹{c.menuItem.price * c.quantity}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* 4. Sticky Floating Cart Bar */}
-      {!placedOrderId && cart.length > 0 && (
-        <div className="fixed bottom-6 left-5 right-5 max-w-md mx-auto z-40">
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-2xl transition duration-300 transform active:scale-98 shadow-emerald-500/20"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-white/10 rounded-xl flex items-center justify-center font-bold text-xs text-white">
-                {cart.reduce((sum, c) => sum + c.quantity, 0)}
+            <div className="border-t border-zinc-850 pt-3 space-y-1 text-xs text-zinc-400">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>₹{cartSubtotal.toFixed(2)}</span>
               </div>
-              <div className="text-left">
-                <span className="text-[10px] text-emerald-100 font-semibold uppercase tracking-wider block">View Cart</span>
-                <span className="text-xs font-bold text-white">Review orders</span>
+              <div className="flex justify-between">
+                <span>GST (5%)</span>
+                <span>₹{tax.toFixed(2)}</span>
               </div>
-            </div>
-
-            <div className="flex items-center gap-1.5 font-bold text-sm">
-              ₹{cartTotal.toFixed(2)}
-              <ChevronRight className="h-4 w-4" />
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* 5. Cart Details Drawer Modal */}
-      {isCartOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-md border-t border-zinc-900 bg-zinc-950 p-6 shadow-2xl rounded-t-3xl max-h-[85vh] flex flex-col justify-between">
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="text-base font-extrabold text-white">Review Table Order</h3>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mt-0.5">{tableName}</p>
-                </div>
-                <button
-                  onClick={() => setIsCartOpen(false)}
-                  className="p-1.5 border border-zinc-900 text-zinc-500 hover:text-zinc-300 rounded-xl transition"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Items List inside Drawer */}
-              <div className="overflow-y-auto max-h-[40vh] divide-y divide-zinc-900/60 pr-1">
-                {cart.map((item) => (
-                  <div key={item.menuItem.id} className="py-3 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-zinc-200 text-xs">{item.menuItem.name}</h4>
-                      <p className="text-[10px] text-zinc-500 mt-0.5">₹{item.menuItem.price.toFixed(2)} each</p>
-                    </div>
-
-                    <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden h-8">
-                      <button
-                        onClick={() => removeFromCart(item.menuItem)}
-                        className="px-2 text-zinc-500 hover:text-zinc-300"
-                      >
-                        <Minus className="h-3 w-3" />
-                      </button>
-                      <span className="px-1 text-xs font-bold text-white w-4 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => addToCart(item.menuItem)}
-                        className="px-2 text-zinc-500 hover:text-zinc-300"
-                      >
-                        <Plus className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Name Details Input */}
-              <div className="mt-6 space-y-1.5">
-                <label className="text-[10px] text-zinc-400 font-extrabold uppercase tracking-wider">Your Name (Optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Alex (for KDS notification)"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full border border-zinc-900 bg-zinc-900/40 px-3 py-2.5 text-xs focus:outline-none text-zinc-200 rounded-xl placeholder-zinc-650"
-                />
-              </div>
-
-              {/* Bill Details */}
-              <div className="mt-6 p-4 border border-zinc-900 bg-zinc-900/20 rounded-2xl space-y-2.5 text-xs text-zinc-400">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span className="font-bold text-zinc-300">₹{cartSubtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>CGST & SGST (5%):</span>
-                  <span className="font-bold text-zinc-300">₹{tax.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Service Charge (10%):</span>
-                  <span className="font-bold text-zinc-300">₹{serviceCharge.toFixed(2)}</span>
-                </div>
-                <div className="h-px bg-zinc-900/60 my-2" />
-                <div className="flex justify-between text-sm text-white font-extrabold">
-                  <span>Grand Total:</span>
-                  <span>₹{cartTotal.toFixed(2)}</span>
-                </div>
+              <div className="flex justify-between font-extrabold text-sm text-white pt-2 border-t border-zinc-800">
+                <span>Total Amount</span>
+                <span className="text-emerald-400">₹{cartTotal.toFixed(2)}</span>
               </div>
             </div>
 
             <button
               onClick={handlePlaceOrder}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-4 rounded-2xl text-xs uppercase tracking-wider mt-6 shadow-xl shadow-emerald-500/10 transition duration-200"
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition"
             >
-              Confirm and Place Order
+              Confirm & Submit Table Order
             </button>
           </div>
         </div>
