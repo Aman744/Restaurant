@@ -352,19 +352,21 @@ export const WaiterDashboard: React.FC = () => {
   const currentlyServedOrders = orders
     .filter((o) => {
       const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
-      return o.status === 'served' && !isBillSent;
+      const isPaid = o.payment?.status === 'paid' || o.status === 'completed';
+      return o.status === 'served' && !isBillSent && !isPaid;
     })
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
   const sentToCashierOrders = orders
     .filter((o) => {
       const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
-      return isBillSent && o.status !== 'completed' && o.status !== 'archived';
+      const isPaid = o.payment?.status === 'paid' || o.status === 'completed' || o.status === 'archived';
+      return isBillSent && !isPaid;
     })
     .sort((a, b) => new Date((b as any).requestedBillAt || b.updatedAt || 0).getTime() - new Date((a as any).requestedBillAt || a.updatedAt || 0).getTime());
 
   const completedOrders = orders
-    .filter((o) => o.status === 'completed')
+    .filter((o) => o.status === 'completed' || o.payment?.status === 'paid')
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
   const resolvedTables = tables.map((t) => {
