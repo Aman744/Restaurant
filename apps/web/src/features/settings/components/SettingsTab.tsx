@@ -425,7 +425,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
         </div>
 
         {/* Column 2: Thermal Receipt Customization & Live Print Preview */}
-        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6 h-full flex flex-col justify-between">
+        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
               <Printer className="h-4 w-4 text-emerald-400" />
@@ -434,13 +434,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Header Title</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase">Receipt Header Subtitle</label>
                 <input
                   type="text"
                   value={receiptHeader}
                   onChange={(e) => setReceiptHeader(e.target.value)}
                   className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                  placeholder="Title printed at top of thermal receipt"
+                  placeholder="Subtitle printed below restaurant name"
                 />
               </div>
 
@@ -458,56 +458,93 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
 
             {/* Thermal Receipt Live Preview Paper */}
             <div className="space-y-2 pt-2">
-              <span className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
-                <Eye className="h-3.5 w-3.5 text-emerald-400" />
-                Live Thermal Print Preview
+              <span className="text-xs text-zinc-400 font-semibold uppercase flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Eye className="h-3.5 w-3.5 text-emerald-400" />
+                  Live Thermal Print Preview
+                </span>
+                <span className="text-[10px] text-emerald-400 font-mono">80mm Paper Width</span>
               </span>
-              <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none max-w-sm mx-auto">
-                <div className="text-center font-bold border-b border-black/20 pb-2 space-y-1">
+
+              <div className="bg-white text-black font-mono p-6 rounded-2xl text-[11px] shadow-2xl space-y-3 border border-gray-300 max-w-sm mx-auto">
+                <div className="text-center font-bold border-b border-dashed border-gray-400 pb-3 space-y-1">
                   {logoUrl && (
-                    <img src={logoUrl} alt="Logo" className="max-h-14 max-w-[150px] w-auto h-auto object-contain mx-auto mb-1" />
+                    <img src={logoUrl} alt="Logo" className="max-h-12 max-w-[140px] w-auto h-auto object-contain mx-auto mb-1.5" />
                   )}
-                  <p className="uppercase text-xs tracking-wider font-black">{receiptHeader || 'RESTAURANT NAME'}</p>
-                  <p className="text-[10px] font-normal text-zinc-600">{address || 'Store Location Address'}</p>
-                  {gstNumber && <p className="text-[10px] font-bold text-zinc-800">GSTIN: {gstNumber}</p>}
+                  <p className="uppercase text-sm tracking-wider font-black">{restaurantName || 'RESTAURANT BRAND NAME'}</p>
+                  <p className="text-[10px] font-bold text-gray-600 uppercase">{receiptHeader || 'OFFICIAL TAX INVOICE & RECEIPT'}</p>
+                  <p className="text-[10px] font-normal text-gray-500">{address || '123 Gourmet Avenue, Food City'}</p>
+                  <p className="text-[10px] font-normal text-gray-500">Ph: {phone || '+91 98765 43210'}</p>
+                  {gstNumber && <p className="text-[10px] font-extrabold text-black">GSTIN: {gstNumber}</p>}
                 </div>
-                <div className="flex justify-between text-[10px] text-zinc-700 py-1 border-b border-black/10">
+
+                <div className="flex justify-between text-[10px] text-gray-600 py-1 border-b border-dashed border-gray-300">
                   <span>Table #01</span>
-                  <span>Sample Bill</span>
+                  <span>Invoice: #ORD_1092</span>
                 </div>
-                <div className="space-y-1 py-1 text-[11px]">
-                  <div className="flex justify-between">
-                    <span>1x Truffle Burger</span>
-                    <span>₹450.00</span>
+
+                <div className="space-y-1.5 py-1 text-[11px]">
+                  <div className="flex justify-between font-bold border-b border-gray-200 pb-1 text-[10px]">
+                    <span>ITEM</span>
+                    <span>QTY x PRICE</span>
+                    <span>TOTAL</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>1x Fresh Mint Soda</span>
-                    <span>₹120.00</span>
+                    <span className="font-medium">1x Truffle Burger</span>
+                    <span>1 x ₹450.00</span>
+                    <span className="font-bold">₹450.00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium">1x Fresh Mint Soda</span>
+                    <span>1 x ₹120.00</span>
+                    <span className="font-bold">₹120.00</span>
                   </div>
                 </div>
-                <div className="border-t border-black/20 pt-2 space-y-1 text-[10px]">
-                  <div className="flex justify-between text-zinc-600">
+
+                <div className="border-t border-dashed border-gray-400 pt-2 space-y-1 text-[11px]">
+                  <div className="flex justify-between text-gray-600">
                     <span>Subtotal:</span>
                     <span>₹570.00</span>
                   </div>
-                  <div className="flex justify-between text-zinc-600">
-                    <span>GST ({taxRate}%):</span>
+                  <div className="flex justify-between text-gray-600">
+                    <span>GST Tax ({taxRate}%):</span>
                     <span>₹{(570 * (taxRate / 100)).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-zinc-600">
+                  <div className="flex justify-between text-gray-600">
                     <span>Service Charge ({serviceChargeRate}%):</span>
                     <span>₹{(570 * (serviceChargeRate / 100)).toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between font-black text-xs pt-1 border-t border-black/20">
+                  <div className="flex justify-between font-black text-sm text-black pt-1.5 border-t border-gray-300">
                     <span>GRAND TOTAL:</span>
                     <span>₹{(570 * (1 + (taxRate + serviceChargeRate) / 100)).toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="text-center text-[10px] text-zinc-600 pt-2 border-t border-black/20">
-                  <p className="italic">{receiptFooter || 'Thank you for dining with us!'}</p>
+
+                <div className="text-center text-[10px] text-gray-600 pt-2 border-t border-dashed border-gray-400 space-y-0.5">
+                  <p className="font-bold text-black uppercase">PAID VIA CASH</p>
+                  <p className="italic font-semibold">{receiptFooter || 'Thank you for dining with us! Please visit again.'}</p>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="pt-4 flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={handleSaveSettings}
+              disabled={isSaving}
+              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? 'Saving...' : 'Save Receipt Settings'}
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              className="py-3 px-4 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-750 transition cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Printer className="h-4 w-4 text-emerald-400" />
+              Test Print Receipt
+            </button>
           </div>
         </div>
       </div>
