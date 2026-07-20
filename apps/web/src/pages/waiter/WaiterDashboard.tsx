@@ -269,7 +269,7 @@ export const WaiterDashboard: React.FC = () => {
       }
     }
 
-    toast.success(`Bill for ${tableNumber} sent to Cashier at http://localhost:5173/cashier!`);
+    toast.success(`Bill for ${tableNumber} sent to Cashier!`);
   };
 
   // Update order status (delivering / completing)
@@ -378,7 +378,7 @@ export const WaiterDashboard: React.FC = () => {
             className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 transition cursor-pointer"
           >
             <CreditCard className="h-4 w-4" />
-            Open Cashier POS (http://localhost:5173/cashier)
+            Open Cashier POS
           </a>
         </div>
 
@@ -584,7 +584,7 @@ export const WaiterDashboard: React.FC = () => {
                       className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center shadow-md flex items-center justify-center gap-2"
                     >
                       <CreditCard className="h-4 w-4" />
-                      Send Bill to Cashier (http://localhost:5173/cashier)
+                      SEND BILL TO CASHIER
                     </button>
                     <button
                       onClick={() => handleUpdateOrderStatus(o.id, 'completed')}
