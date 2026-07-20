@@ -8,6 +8,7 @@ import { RestaurantAdminDashboard } from '../pages/admin/RestaurantAdminDashboar
 import { KitchenDashboard } from '../pages/kds/KitchenDashboard';
 import { WaiterDashboard } from '../pages/waiter/WaiterDashboard';
 import { CashierDashboard } from '../pages/cashier/CashierDashboard';
+import { InvoicesHistoryPage } from '../pages/cashier/InvoicesHistoryPage';
 import { CustomerMenu } from '../pages/customer/CustomerMenu';
 import { QRScanner } from '../pages/customer/QRScanner';
 import { Store, ShieldCheck, ChefHat, Utensils, CreditCard, UserCheck, Smartphone } from 'lucide-react';
@@ -315,6 +316,22 @@ export const AppRouter: React.FC = () => {
         element={
           <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
             <CashierDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cashier/invoices"
+        element={
+          <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
+            <InvoicesHistoryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/invoices"
+        element={
+          <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
+            <InvoicesHistoryPage />
           </ProtectedRoute>
         }
       />

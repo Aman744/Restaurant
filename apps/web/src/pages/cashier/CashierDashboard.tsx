@@ -28,6 +28,7 @@ export const CashierDashboard: React.FC = () => {
 
   const sidebarItems = [
     { name: 'Pending Bills', path: '/cashier', icon: CreditCard },
+    { name: 'Invoices History', path: '/cashier/invoices', icon: Receipt },
   ];
 
   const [orders, setOrders] = useState<Order[]>([]);
