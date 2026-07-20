@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { useToast } from '../../components/shared/ToastContext';
@@ -497,7 +497,7 @@ export const CashierDashboard: React.FC = () => {
                 renderSettlementForm(selectedBill)
               ) : (
                 <div className="border border-dashed border-zinc-850 py-16 text-center text-zinc-500 rounded-3xl">
-                  <Receipt className="h-8 w-8 mx-auto text-zinc-600 mb-3" />
+                  <IndianRupee className="h-8 w-8 mx-auto text-emerald-500/30 mb-3" />
                   <p className="text-xs font-semibold text-zinc-400">Select a pending bill to view settlement console</p>
                 </div>
               )}
