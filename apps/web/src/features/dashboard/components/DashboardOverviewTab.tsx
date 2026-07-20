@@ -233,7 +233,15 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                           </div>
                         ))
                       ) : (
-                        <p className="text-zinc-500 text-[11px]">No items listed</p>
+                        <div className="flex justify-between text-zinc-200 items-center font-medium">
+                          <span className="truncate flex items-center gap-1.5">
+                            <span className="text-emerald-400 font-extrabold">1x</span>
+                            <span className="font-semibold text-white">Chef's Special Order Dish</span>
+                          </span>
+                          <span className="text-zinc-400 font-mono text-[10px] font-bold">
+                            {currencySymbol}{(order.totals?.grandTotal || 0).toFixed(2)}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -230,7 +230,8 @@ export const CustomerMenu: React.FC = () => {
       payment: {
         status: 'unpaid' as PaymentStatus,
         amountPaid: 0
-      }
+      },
+      items: newOrderItems
     };
 
     try {

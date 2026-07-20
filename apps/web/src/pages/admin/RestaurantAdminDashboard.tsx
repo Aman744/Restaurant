@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase.js';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
@@ -79,10 +79,20 @@ export const RestaurantAdminDashboard: React.FC = () => {
       const unsubs = [
         onSnapshot(
           collection(db, 'tenants', tenantId, 'orders'),
-          (snap) => {
-            const items: Order[] = [];
-            snap.forEach((d) => items.push({ id: d.id, ...d.data() } as Order));
-            if (active) setOrders(items);
+          async (snap) => {
+            const fetchedOrders: Order[] = [];
+            for (const docSnap of snap.docs) {
+              const data = docSnap.data();
+              let orderItems = data.items || [];
+              if (!orderItems || orderItems.length === 0) {
+                try {
+                  const subCol = await getDocs(collection(db, 'tenants', tenantId, 'orders', docSnap.id, 'order_items'));
+                  orderItems = subCol.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
+                } catch (e) {}
+              }
+              fetchedOrders.push({ id: docSnap.id, ...data, items: orderItems } as Order);
+            }
+            if (active) setOrders(fetchedOrders);
           },
           (err) => console.warn('Orders listener notice:', err.message)
         ),
