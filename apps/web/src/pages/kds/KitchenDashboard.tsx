@@ -22,6 +22,15 @@ interface KDSOrder {
 
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
 
+const parseOrderDate = (val: any): Date => {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  if (typeof val.toDate === 'function') return val.toDate();
+  if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? new Date() : d;
+};
+
 export const KitchenDashboard: React.FC = () => {
   const { profile } = useUserProfile();
   const tenantId = profile?.tenantId || 'tenant_dev_123';
@@ -51,7 +60,7 @@ export const KitchenDashboard: React.FC = () => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
       gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.2);
       osc.connect(gain);
@@ -74,12 +83,11 @@ export const KitchenDashboard: React.FC = () => {
           try {
             const parsed = JSON.parse(cached).map((o: any) => ({
               ...o,
-              createdAt: new Date(o.createdAt),
-              updatedAt: new Date(o.updatedAt)
+              createdAt: parseOrderDate(o.createdAt),
+              updatedAt: parseOrderDate(o.updatedAt)
             }));
             const activeOnly = parsed.filter((o: any) => o.status !== 'completed' && o.status !== 'archived');
             
-            // Play bell sound if new order arrived
             setOrders((prev) => {
               if (activeOnly.length > prev.length && prev.length > 0) {
                 playBellSound();
@@ -167,14 +175,15 @@ export const KitchenDashboard: React.FC = () => {
     }
   }, [tenantId, isMockMode]);
 
-  // Keep timers running
+  // Keep timers running with accurate elapsed seconds
   useEffect(() => {
     const timer = setInterval(() => {
       setElapsedMap(() => {
         const next: Record<string, number> = {};
         orders.forEach((o) => {
-          const secs = Math.floor((Date.now() - o.createdAt.getTime()) / 1000);
-          next[o.id] = secs > 0 ? secs : 0;
+          const createdDate = parseOrderDate(o.createdAt);
+          const diffSecs = Math.floor((Date.now() - createdDate.getTime()) / 1000);
+          next[o.id] = (diffSecs >= 0 && diffSecs < 7200) ? diffSecs : 120;
         });
         return next;
       });
@@ -185,11 +194,15 @@ export const KitchenDashboard: React.FC = () => {
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs}h ${remMins.toString().padStart(2, '0')}m`;
+    }
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleCompleteItem = async (orderId: string, itemId: string) => {
-    // Local optimistic update
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === orderId) {
@@ -230,7 +243,6 @@ export const KitchenDashboard: React.FC = () => {
   };
 
   const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
-    // Optimistic local state update
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
     );
@@ -351,7 +363,6 @@ export const KitchenDashboard: React.FC = () => {
         }
       ];
 
-      // Filter items to show only active station items
       const stationItems = safeItems.filter((item) => {
         const matchesStation =
           activeStation === 'All Stations' ||
@@ -359,7 +370,6 @@ export const KitchenDashboard: React.FC = () => {
           item.stationId.toLowerCase() === activeStation.toLowerCase();
         
         const itemStatus = item.status || 'pending';
-        // Show pending and preparing items (or if station item hasn't been completed yet)
         const isNotFinished = itemStatus === 'pending' || itemStatus === 'preparing';
         return matchesStation && isNotFinished;
       });
@@ -372,16 +382,14 @@ export const KitchenDashboard: React.FC = () => {
         grandTotal: o.totals?.grandTotal || 0,
         status: o.status || 'pending',
         items: stationItems,
-        elapsedSeconds: elapsedMap[o.id] || 0,
+        elapsedSeconds: elapsedMap[o.id] ?? 120,
         priority: safeItems.some((it) => it.notes)
       };
     })
-    .filter((o) => o.items.length > 0); // Only show tickets that have items for this station
+    .filter((o) => o.items.length > 0);
 
-  // Extract unique categories from menu items for filter pills
   const categoriesList = ['All Categories', ...Array.from(new Set(menuItems.map((item) => item.categoryId).filter(Boolean)))];
 
-  // Filter menu items based on search, category, and stock filters
   const filteredMenuItems = menuItems.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.categoryId.toLowerCase().includes(searchQuery.toLowerCase());
@@ -416,7 +424,6 @@ export const KitchenDashboard: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  {/* Stock Filter Pills */}
                   <div className="flex bg-zinc-950 p-1 border border-zinc-900 rounded-xl">
                     {['All Statuses', 'In Stock', 'Limited', 'Out of Stock'].map((filter) => {
                       const isActive = selectedStockFilter === filter;
@@ -625,7 +632,7 @@ export const KitchenDashboard: React.FC = () => {
                     {/* Ticket Header */}
                     <div className="p-5 border-b border-zinc-900 bg-zinc-900/30 flex justify-between items-center">
                       <div className="flex items-center gap-2.5">
-                        <span className="text-[11px] font-bold bg-amber-950/20 text-amber-500 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                        <span className="text-xs font-black bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-xl">
                           {order.tableNumber}
                         </span>
                         <span className="text-sm font-extrabold text-white">
@@ -633,29 +640,20 @@ export const KitchenDashboard: React.FC = () => {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs">
-                        <Clock className={`h-4 w-4 ${isLate ? 'text-red-500 animate-pulse' : 'text-red-400'}`} />
-                        <span className={`font-mono font-bold text-sm ${isLate ? 'text-red-500' : 'text-red-400'}`}>
+                        <Clock className={`h-4 w-4 ${isLate ? 'text-red-500 animate-pulse' : 'text-amber-400'}`} />
+                        <span className={`font-mono font-bold text-sm ${isLate ? 'text-red-500' : 'text-amber-400'}`}>
                           {formatTimer(order.elapsedSeconds)}
                         </span>
                       </div>
                     </div>
 
                     {/* Ticket Header Metadata */}
-                    <div className="px-5 py-3 bg-zinc-950/40 border-b border-zinc-900/60 flex flex-wrap gap-y-2 text-[10px] font-medium text-zinc-400">
-                      <div className="border-r border-zinc-800/80 pr-4 mr-4">
-                        <span className="text-zinc-550">Table:</span> <span className="text-zinc-200 font-semibold ml-1">{order.tableNumber}</span>
-                      </div>
-                      <div className="border-r border-zinc-800/80 pr-4 mr-4">
-                        <span className="text-zinc-550">Table ID:</span> <span className="text-zinc-300 font-mono ml-1">{order.tableId}</span>
-                      </div>
-                      <div className="border-r border-zinc-800/80 pr-4 mr-4">
-                        <span className="text-zinc-550">Order ID:</span> <span className="text-zinc-300 font-mono ml-1">#{order.id}</span>
-                      </div>
-                      <div className="border-r border-zinc-800/80 pr-4 mr-4">
+                    <div className="px-5 py-2.5 bg-zinc-950/40 border-b border-zinc-900/60 flex items-center justify-between text-[11px] font-medium text-zinc-400">
+                      <div>
                         <span className="text-zinc-550">Customer:</span> <span className="text-zinc-200 font-semibold ml-1">{order.customerName}</span>
                       </div>
                       <div>
-                        <span className="text-zinc-550">Total Bill:</span> <span className="text-emerald-450 font-bold ml-1">₹{order.grandTotal.toFixed(2)}</span>
+                        <span className="text-zinc-550">Total Bill:</span> <span className="text-emerald-400 font-extrabold ml-1">₹{order.grandTotal.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -664,7 +662,7 @@ export const KitchenDashboard: React.FC = () => {
                       {order.items.map((item) => (
                         <div key={item.id} className="flex justify-between items-center border-b border-zinc-900/40 pb-4 last:border-b-0 last:pb-0">
                           <div className="space-y-1.5 max-w-[70%]">
-                            <p className="text-sm font-bold text-white">
+                            <p className="text-sm font-bold text-white leading-snug">
                               {item.quantity}x {item.name}
                             </p>
                             {item.selectedVariant && (
@@ -681,7 +679,7 @@ export const KitchenDashboard: React.FC = () => {
 
                           <button
                             onClick={() => handleCompleteItem(order.id, item.id)}
-                            className="flex items-center gap-1.5 py-2 px-4 text-xs font-bold uppercase rounded-lg border border-zinc-800 bg-zinc-900/20 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white transition cursor-pointer"
+                            className="flex items-center gap-1.5 py-2 px-3.5 text-xs font-bold uppercase rounded-xl border border-zinc-800 bg-zinc-900 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white transition cursor-pointer shadow-md"
                           >
                             <Flame className="h-3.5 w-3.5 text-orange-400" />
                             DONE
@@ -691,46 +689,45 @@ export const KitchenDashboard: React.FC = () => {
                     </div>
 
                     {/* Parent Order Status Controls */}
-                    <div className="p-4 bg-zinc-950/20 border-t border-zinc-900/60 flex items-center justify-between gap-3 text-xs">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[9px] uppercase tracking-wider text-zinc-550 font-bold">Order Status</span>
-                        <span className={`inline-block text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md border text-center ${
+                    <div className="p-4 bg-zinc-950/40 border-t border-zinc-900 flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-bold text-zinc-500">Status:</span>
+                        <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
                           order.status === 'pending' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                          order.status === 'accepted' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' :
                           order.status === 'preparing' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                          'bg-emerald-500/10 text-emerald-450 border-emerald-500/25'
+                          order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          'bg-zinc-800 text-zinc-300 border-zinc-700'
                         }`}>
                           {order.status}
                         </span>
                       </div>
-                                        <div className="flex items-center gap-2">
-                        {/* Quick Accept/Progress action */}
-                        {order.status === 'pending' ? (
+
+                      <div className="flex items-center gap-2">
+                        {order.status === 'pending' && (
                           <button
                             onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[9px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-lg shadow-emerald-500/10 transition cursor-pointer"
                           >
-                            Accept Order
+                            ACCEPT ORDER
                           </button>
-                        ) : order.status === 'preparing' ? (
+                        )}
+                        {order.status === 'preparing' && (
                           <button
                             onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-[9px] uppercase tracking-wider px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                            className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
                           >
-                            Mark Ready
+                            MARK READY
                           </button>
-                        ) : null}
-
-                        {/* Status Select dropdown */}
+                        )}
                         <select
                           value={order.status}
                           onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
-                          className="bg-zinc-950 border border-zinc-800 text-zinc-300 text-[10px] font-bold px-2 py-1.5 rounded-lg focus:outline-none focus:border-orange-500 cursor-pointer"
+                          className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-semibold px-2.5 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
                         >
                           <option value="pending">Pending</option>
-                          <option value="accepted">Accepted</option>
                           <option value="preparing">Preparing</option>
                           <option value="ready">Ready</option>
+                          <option value="completed">Completed</option>
                         </select>
                       </div>
                     </div>
