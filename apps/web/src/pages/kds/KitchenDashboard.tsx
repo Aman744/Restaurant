@@ -841,20 +841,29 @@ export const KitchenDashboard: React.FC = () => {
                           </span>
                           <span className="text-sm font-bold text-white">#{order.id.slice(-6).toUpperCase()}</span>
                         </div>
-                        <span className="text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                          READY / DONE
+                        <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
+                          order.status === 'served'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        }`}>
+                          {order.status === 'served' ? 'SERVED TO TABLE' : 'READY / DONE'}
                         </span>
                       </div>
 
                       <div className="space-y-2 text-xs">
-                        {order.items.map((item) => (
-                          <div key={item.id} className="flex justify-between items-center text-zinc-300">
-                            <span className="font-semibold">{item.quantity}x {item.name}</span>
-                            <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" /> READY
-                            </span>
-                          </div>
-                        ))}
+                        {order.items.map((item) => {
+                          const isServed = item.status === 'served' || order.status === 'served';
+                          return (
+                            <div key={item.id} className="flex justify-between items-center text-zinc-300">
+                              <span className="font-semibold">{item.quantity}x {item.name}</span>
+                              <span className={`text-[10px] font-bold flex items-center gap-1 ${
+                                isServed ? 'text-blue-400' : 'text-emerald-400'
+                              }`}>
+                                <CheckCircle className="h-3 w-3" /> {isServed ? 'SERVED' : 'READY'}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
 
                       <div className="pt-3 border-t border-zinc-850 flex justify-between items-center text-xs">

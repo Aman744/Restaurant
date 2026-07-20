@@ -243,7 +243,13 @@ export const WaiterDashboard: React.FC = () => {
   // Update order status (waiter delivering items to table / completing)
   const handleUpdateOrderStatus = async (orderId: string, nextStatus: OrderStatus) => {
     setActiveOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
+      prev.map((o) => {
+        if (o.id === orderId) {
+          const updatedItems = (o.items || []).map((i) => ({ ...i, status: nextStatus === 'served' ? ('served' as const) : i.status }));
+          return { ...o, status: nextStatus, items: updatedItems };
+        }
+        return o;
+      })
     );
 
     if (isMockMode) {
@@ -251,9 +257,13 @@ export const WaiterDashboard: React.FC = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          const updated = parsed.map((o: any) =>
-            o.id === orderId ? { ...o, status: nextStatus, updatedAt: new Date().toISOString() } : o
-          );
+          const updated = parsed.map((o: any) => {
+            if (o.id === orderId) {
+              const updatedItems = (o.items || []).map((i: any) => ({ ...i, status: nextStatus === 'served' ? 'served' : i.status }));
+              return { ...o, status: nextStatus, items: updatedItems, updatedAt: new Date().toISOString() };
+            }
+            return o;
+          });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
         } catch (e) {}
