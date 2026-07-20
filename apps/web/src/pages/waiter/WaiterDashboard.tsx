@@ -371,7 +371,8 @@ export const WaiterDashboard: React.FC = () => {
             </div>
             <div className="space-y-4">
               {activeOrders.map((o) => {
-                const isReadyToServe = o.status === 'ready';
+                const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
+                const isReadyToServe = o.status === 'ready' || allItemsReady;
                 let cardBorder = 'border-zinc-900 bg-zinc-905/30';
                 let badgeColor = 'bg-zinc-900 text-zinc-400 border-zinc-800';
 

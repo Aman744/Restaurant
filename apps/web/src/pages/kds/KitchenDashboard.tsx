@@ -204,9 +204,12 @@ export const KitchenDashboard: React.FC = () => {
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === orderId) {
+          const updatedItems = o.items.map((i) => i.id === itemId ? { ...i, status: 'ready' as const } : i);
+          const allDone = updatedItems.every((i) => i.status === 'ready' || i.status === 'served');
           return {
             ...o,
-            items: o.items.map((i) => i.id === itemId ? { ...i, status: 'ready' as const } : i)
+            items: updatedItems,
+            status: allDone ? ('ready' as const) : o.status
           };
         }
         return o;
@@ -220,20 +223,32 @@ export const KitchenDashboard: React.FC = () => {
           const parsed = JSON.parse(cached);
           const updated = parsed.map((o: any) => {
             if (o.id === orderId) {
+              const updatedItems = (o.items || []).map((i: any) => i.id === itemId ? { ...i, status: 'ready' } : i);
+              const allDone = updatedItems.length === 0 || updatedItems.every((i: any) => i.status === 'ready' || i.status === 'served');
               return {
                 ...o,
-                items: o.items.map((i: any) => i.id === itemId ? { ...i, status: 'ready' } : i)
+                items: updatedItems,
+                status: allDone ? 'ready' : o.status,
+                updatedAt: new Date().toISOString()
               };
             }
             return o;
           });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
         } catch (e) {}
       }
     } else {
       try {
         const itemDocRef = doc(db, 'tenants', tenantId, 'orders', orderId, 'order_items', itemId);
         await setDoc(itemDocRef, { status: 'ready' }, { merge: true });
+
+        const itemsCol = collection(db, 'tenants', tenantId, 'orders', orderId, 'order_items');
+        const itemsSnap = await getDocs(itemsCol);
+        const allReady = itemsSnap.docs.every((d: any) => d.data().status === 'ready' || d.data().status === 'served');
+        if (allReady) {
+          await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { status: 'ready', updatedAt: new Date() }, { merge: true });
+        }
       } catch (err: any) {
         console.error('Failed to update KDS item status:', err);
       }
