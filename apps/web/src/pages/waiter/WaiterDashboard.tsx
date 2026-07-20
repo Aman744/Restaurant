@@ -324,11 +324,20 @@ export const WaiterDashboard: React.FC = () => {
   // Categorize Sections
   const readyForDeliveryOrders = orders.filter((o) => {
     const isServed = o.status === 'served';
+    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
     const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
-    return !isServed && o.status !== 'completed' && o.status !== 'archived' && (o.status === 'ready' || allItemsReady);
+    return !isServed && !isBillSent && o.status !== 'completed' && o.status !== 'archived' && (o.status === 'ready' || allItemsReady);
   });
 
-  const currentlyServedOrders = orders.filter((o) => o.status === 'served');
+  const currentlyServedOrders = orders.filter((o) => {
+    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
+    return o.status === 'served' && !isBillSent;
+  });
+
+  const sentToCashierOrders = orders.filter((o) => {
+    const isBillSent = Boolean((o as any).billRequested || (o as any).requestedBillAt);
+    return isBillSent && o.status !== 'completed' && o.status !== 'archived';
+  });
 
   const completedOrders = orders.filter((o) => o.status === 'completed');
 
@@ -356,6 +365,7 @@ export const WaiterDashboard: React.FC = () => {
               { id: 'Tables', label: `Dining Tables (${resolvedTables.length})` },
               { id: 'Delivery', label: `Ready for Delivery (${readyForDeliveryOrders.length})` },
               { id: 'Served', label: `Served to Tables (${currentlyServedOrders.length})` },
+              { id: 'CashierQueue', label: `Sent to Cashier (${sentToCashierOrders.length})` },
               { id: 'Alerts', label: `Customer Alerts (${alerts.length})` },
               { id: 'Completed', label: `Completed (${completedOrders.length})` },
             ].map((tab) => (
@@ -603,6 +613,70 @@ export const WaiterDashboard: React.FC = () => {
                 <div className="col-span-full border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
                   <Check className="h-8 w-8 mx-auto text-blue-500/20 mb-3" />
                   <p className="text-xs font-semibold text-zinc-400">No active served tables</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* SECTION: Sent to Cashier for Billing */}
+        {(activeSectionTab === 'All Sections' || activeSectionTab === 'CashierQueue') && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl">
+                  <CreditCard className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Sent to Cashier for Billing (SENT TO CASHIER)</h3>
+                  <p className="text-xs text-zinc-500">Invoices dispatched to Cashier POS awaiting customer settlement</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                {sentToCashierOrders.length} Sent Tickets
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {sentToCashierOrders.map((o) => (
+                <div key={`sent_${o.id}`} className="border border-emerald-500/40 bg-emerald-950/20 p-5 rounded-3xl space-y-4 shadow-xl">
+                  <div className="flex justify-between items-start border-b border-emerald-500/20 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-xl">
+                          {o.tableNumber}
+                        </span>
+                        <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1 font-medium">Customer: {o.customerName || 'Guest'}</p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg animate-pulse">
+                      SENT TO CASHIER
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    {(o.items || []).map((item) => (
+                      <div key={item.id} className="flex justify-between items-center text-zinc-300">
+                        <span className="font-semibold">{item.quantity}x {item.name}</span>
+                        <span className="text-[10px] font-bold text-emerald-400">
+                          ₹{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-3 border-t border-emerald-500/20 flex justify-between items-center">
+                    <span className="text-emerald-400 font-extrabold text-sm">Total: ₹{(o.totals?.grandTotal || 0).toFixed(2)}</span>
+                    <span className="text-[10px] font-bold text-zinc-400 italic">Awaiting Cashier Settlement...</span>
+                  </div>
+                </div>
+              ))}
+
+              {sentToCashierOrders.length === 0 && (
+                <div className="col-span-full border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
+                  <CreditCard className="h-8 w-8 mx-auto text-emerald-500/20 mb-3" />
+                  <p className="text-xs font-semibold text-zinc-400">No bills currently in cashier settlement queue</p>
                 </div>
               )}
             </div>
