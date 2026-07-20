@@ -44,6 +44,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     const fetchSettings = async () => {
       setLoading(true);
       try {
+        const defaultBrandLogo = 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
         if (isMockMode) {
           const stored = localStorage.getItem(`restaurant_qr_settings_${tenantId}`);
           if (stored) {
@@ -56,7 +57,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               setRestaurantName(parsed.restaurantName || 'Aman\'s Restaurant & Bar');
               setPhone(parsed.phone || '+91 98765 43210');
               setAddress(parsed.address || '123 Gourmet Avenue');
-              setLogoUrl(parsed.logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80');
+              const resolvedLogo = (!parsed.logoUrl || parsed.logoUrl.includes('photo-1555396273')) ? defaultBrandLogo : parsed.logoUrl;
+              setLogoUrl(resolvedLogo);
               setReceiptHeader(parsed.receiptHeader || 'Gourmet Dining & QR Bar');
               setReceiptFooter(parsed.receiptFooter || 'Thank you for dining with us! Please visit again.');
             }
@@ -72,7 +74,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             setRestaurantName(data.restaurantName || 'Aman\'s Restaurant & Bar');
             setPhone(data.phone || '+91 98765 43210');
             setAddress(data.address || '123 Gourmet Avenue');
-            setLogoUrl(data.logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80');
+            const resolvedLogo = (!data.logoUrl || data.logoUrl.includes('photo-1555396273')) ? defaultBrandLogo : data.logoUrl;
+            setLogoUrl(resolvedLogo);
             setReceiptHeader(data.receiptHeader || 'Gourmet Dining & QR Bar');
             setReceiptFooter(data.receiptFooter || 'Thank you!');
           }

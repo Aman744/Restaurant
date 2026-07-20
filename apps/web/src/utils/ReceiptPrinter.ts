@@ -17,7 +17,8 @@ export class ReceiptPrinter {
     const header = storedSettings?.receiptHeader || tenant?.theme?.receiptTheme?.header || 'TAX INVOICE / BILL RECEIPT';
     const footer = storedSettings?.receiptFooter || tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
     const gstinNumber = storedSettings?.gstNumber || '22AAAAA0000A1Z5';
-    const logoUrl = storedSettings?.logoUrl || tenant?.logoUrl || 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png';
+    const rawLogo = storedSettings?.logoUrl || tenant?.logoUrl;
+    const logoUrl = (!rawLogo || rawLogo.includes('photo-1555396273')) ? 'https://cdn-icons-png.flaticon.com/512/3170/3170733.png' : rawLogo;
 
     let safeItems = Array.isArray(order?.items) ? order.items : [];
     if (safeItems.length === 0) {
