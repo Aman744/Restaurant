@@ -246,18 +246,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
         {/* User Card & Logout */}
         <div className="p-4 border-t border-zinc-900 space-y-4">
-          <div className="flex items-start gap-3 px-1">
-            <div className="h-9 w-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+          <div className="flex items-center gap-3 px-2">
+            <div className="h-9 w-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 shrink-0">
               <User className="h-4.5 w-4.5" />
             </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <h4 className="text-xs font-bold text-zinc-100 truncate leading-snug">{profile?.displayName || 'User'}</h4>
-              <p className="text-[10px] text-zinc-400 truncate leading-tight">{profile?.email}</p>
-              {profile?.role && (
-                <span className="inline-block text-[9px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md mt-0.5">
-                  {profile.role.replace('-', ' ')}
-                </span>
-              )}
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <h4 className="text-xs font-bold text-zinc-100 truncate">{profile?.displayName || 'User'}</h4>
+              <p className="text-[10px] text-zinc-500 truncate">{profile?.email}</p>
             </div>
           </div>
           <button
@@ -457,18 +452,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                   </nav>
                 </div>
                 <div className="space-y-4 pt-4 border-t border-zinc-900">
-                  <div className="flex items-start gap-3 px-1">
-                    <div className="h-9 w-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 shrink-0 mt-0.5">
+                  <div className="flex items-center gap-3 px-2">
+                    <div className="h-9 w-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-emerald-400 shrink-0">
                       <User className="h-4.5 w-4.5" />
                     </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <h4 className="text-xs font-bold text-zinc-100 truncate leading-snug">{profile?.displayName || 'User'}</h4>
-                      <p className="text-[10px] text-zinc-400 truncate leading-tight">{profile?.email}</p>
-                      {profile?.role && (
-                        <span className="inline-block text-[9px] font-extrabold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md mt-0.5">
-                          {profile.role.replace('-', ' ')}
-                        </span>
-                      )}
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <h4 className="text-xs font-bold text-zinc-100 truncate">{profile?.displayName || 'User'}</h4>
+                      <p className="text-[10px] text-zinc-500 truncate">{profile?.email}</p>
                     </div>
                   </div>
                   <button
