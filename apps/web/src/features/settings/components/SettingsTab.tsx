@@ -3,7 +3,7 @@ import { db, auth } from '../../../lib/firebase.js';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { useToast } from '../../../components/shared/ToastContext';
-import { Save, Store, Receipt, IndianRupee, Phone, MapPin, Loader2, KeyRound, Lock, Eye } from 'lucide-react';
+import { Save, Store, Printer, IndianRupee, Phone, MapPin, Loader2, KeyRound, Lock, Eye } from 'lucide-react';
 
 interface SettingsTabProps {
   tenantId: string;
@@ -362,7 +362,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
         <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-6 h-full flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
-              <Receipt className="h-4 w-4 text-emerald-400" />
+              <Printer className="h-4 w-4 text-emerald-400" />
               <h4 className="text-xs font-bold text-white uppercase tracking-wider">Thermal Receipt Customization & Live Preview</h4>
             </div>
 
