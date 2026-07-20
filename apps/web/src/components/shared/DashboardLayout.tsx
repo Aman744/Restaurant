@@ -402,6 +402,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Profile Role Badge (Right side of Live Notifications) */}
+            {profile?.role && (
+              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl shrink-0">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                  {profile.role.replace('-', ' ')}
+                </span>
+              </div>
+            )}
           </div>
         </header>
 
