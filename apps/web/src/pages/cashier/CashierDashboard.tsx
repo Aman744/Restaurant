@@ -381,7 +381,7 @@ export const CashierDashboard: React.FC = () => {
         className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-black py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2"
       >
         <Receipt className="h-4 w-4" />
-        Confirm Settle & Print Receipt
+        Confirm Settle & Download Invoice
       </button>
     </div>
   );
@@ -572,7 +572,7 @@ export const CashierDashboard: React.FC = () => {
                       className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-750 px-3 py-1.5 rounded-xl transition cursor-pointer"
                     >
                       <Printer className="h-3.5 w-3.5" />
-                      Thermal Receipt
+                      View / Download Invoice
                     </button>
                   </div>
                 </div>

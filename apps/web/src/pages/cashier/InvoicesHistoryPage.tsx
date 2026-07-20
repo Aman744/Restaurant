@@ -560,7 +560,7 @@ export const InvoicesHistoryPage: React.FC = () => {
                           className="w-full py-2.5 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-750 transition cursor-pointer flex items-center justify-center gap-2"
                         >
                           <Printer className="h-4 w-4 text-emerald-400" />
-                          Thermal Tax Receipt
+                          View / Download Invoice
                         </button>
                       </div>
                     </div>
@@ -620,7 +620,7 @@ export const InvoicesHistoryPage: React.FC = () => {
                                 className="py-1.5 px-3 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-[10px] uppercase rounded-xl border border-zinc-750 transition cursor-pointer inline-flex items-center gap-1.5"
                               >
                                 <Printer className="h-3.5 w-3.5 text-emerald-400" />
-                                Receipt
+                                View / Download Invoice
                               </button>
                             </td>
                           </tr>
