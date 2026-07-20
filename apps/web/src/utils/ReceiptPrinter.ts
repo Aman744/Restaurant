@@ -182,12 +182,12 @@ export class ReceiptPrinter {
           </style>
         </head>
         <body>
-          {/* Header */}
+          <!-- Header -->
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
           <div class="dashed-divider"></div>
 
-          {/* Meta Details Table */}
+          <!-- Meta Details Table -->
           <table class="meta-table">
             <tr>
               <td><strong>ORDER ID:</strong> #${order?.id || 'N/A'}</td>
@@ -199,7 +199,7 @@ export class ReceiptPrinter {
             ${order?.customerName ? `<tr><td colspan="2"><strong>CUSTOMER:</strong> ${order.customerName}</td></tr>` : ''}
           </table>
 
-          {/* Items Table */}
+          <!-- Items Table -->
           <table class="items-table">
             <thead>
               <tr>
@@ -215,7 +215,7 @@ export class ReceiptPrinter {
 
           <div class="dashed-divider"></div>
 
-          {/* Subtotals Table */}
+          <!-- Subtotals Table -->
           <table class="totals-table">
             <tr>
               <td class="text-left">Items Subtotal</td>
@@ -231,7 +231,7 @@ export class ReceiptPrinter {
             </tr>
           </table>
 
-          {/* Grand Total Highlight Box */}
+          <!-- Grand Total Highlight Box -->
           <div class="grand-total-box">
             <span>NET TOTAL</span>
             <span>${currency}${grandTotal}</span>
@@ -239,7 +239,7 @@ export class ReceiptPrinter {
 
           <div class="solid-divider"></div>
 
-          {/* Footer Info */}
+          <!-- Footer Info -->
           <div class="text-center font-bold" style="font-size: 12px; text-transform: uppercase;">
             PAYMENT: <span style="text-decoration: underline;">${paymentStatus}</span>
           </div>
