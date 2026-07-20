@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Store, IndianRupee, Save, Printer, Eye, Lock, KeyRound, Phone, MapPin, FileText, Image as ImageIcon } from 'lucide-react';
+import { Store, IndianRupee, Save, Printer, Eye, Lock, KeyRound, Phone, MapPin, FileText, Image as ImageIcon, Upload } from 'lucide-react';
 import { useToast } from '../../../components/shared/ToastContext';
 import { db } from '../../../lib/firebase.js';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -57,8 +57,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               setRestaurantName(parsed.restaurantName || 'Aman\'s Restaurant & Bar');
               setPhone(parsed.phone || '+91 98765 43210');
               setAddress(parsed.address || '123 Gourmet Avenue');
-              const resolvedLogo = (!parsed.logoUrl || parsed.logoUrl.includes('photo-1555396273') || parsed.logoUrl.includes('3170733')) ? defaultBrandLogo : parsed.logoUrl;
-              setLogoUrl(resolvedLogo);
+              setLogoUrl(parsed.logoUrl || defaultBrandLogo);
               setReceiptHeader(parsed.receiptHeader || 'Gourmet Dining & QR Bar');
               setReceiptFooter(parsed.receiptFooter || 'Thank you for dining with us! Please visit again.');
             }
@@ -74,8 +73,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             setRestaurantName(data.restaurantName || 'Aman\'s Restaurant & Bar');
             setPhone(data.phone || '+91 98765 43210');
             setAddress(data.address || '123 Gourmet Avenue');
-            const resolvedLogo = (!data.logoUrl || data.logoUrl.includes('photo-1555396273') || data.logoUrl.includes('3170733')) ? defaultBrandLogo : data.logoUrl;
-            setLogoUrl(resolvedLogo);
+            setLogoUrl(data.logoUrl || defaultBrandLogo);
             setReceiptHeader(data.receiptHeader || 'Gourmet Dining & QR Bar');
             setReceiptFooter(data.receiptFooter || 'Thank you!');
           }
@@ -93,6 +91,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
       active = false;
     };
   }, [tenantId, isMockMode]);
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('Image file size must be less than 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setLogoUrl(reader.result);
+          toast.success('Brand logo uploaded successfully!');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +131,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     try {
       if (isMockMode) {
         localStorage.setItem(`restaurant_qr_settings_${tenantId}`, JSON.stringify(settingsData));
-        toast.success('Restaurant settings and Brand Logo saved successfully!');
+        toast.success('Restaurant settings & Brand Logo saved successfully!');
       } else {
         await setDoc(doc(db, 'tenants', tenantId, 'settings', 'general'), settingsData, { merge: true });
         toast.success('Restaurant settings updated in production!');
@@ -173,7 +189,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-800 pb-4">
         <div>
           <h3 className="text-base font-extrabold text-white">Restaurant Settings & Configuration</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Manage brand logo, GST registration, tax rates, and thermal receipts</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Upload brand logo, manage GST registration, tax rates, and thermal receipts</p>
         </div>
 
         <button
@@ -190,7 +206,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Column 1: Business Profile & Financials */}
         <div className="space-y-6">
-          {/* Section 1: Business Profile & Brand Logo */}
+          {/* Section 1: Business Profile & Brand Logo Upload */}
           <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
             <div className="flex items-center gap-2 border-b border-zinc-850 pb-3">
               <Store className="h-4 w-4 text-emerald-400" />
@@ -201,23 +217,35 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               <div className="space-y-2">
                 <label className="text-xs text-zinc-400 font-semibold uppercase flex items-center gap-1">
                   <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
-                  Brand Logo Image (URL Link)
+                  Brand Logo Image (Upload File or Paste Image URL Link)
                 </label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                   <img
-                    src={logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80'}
+                    src={logoUrl || 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png'}
                     alt="Brand Logo"
-                    className="h-12 max-h-12 w-auto max-w-[140px] object-contain rounded-xl border border-zinc-800 p-1 bg-zinc-950 shadow-md"
+                    className="h-14 max-h-14 w-auto max-w-[140px] object-contain rounded-xl border border-zinc-800 p-1.5 bg-zinc-950 shadow-md shrink-0"
                   />
-                  <div className="flex-1 space-y-1">
-                    <input
-                      type="text"
-                      value={logoUrl}
-                      onChange={(e) => setLogoUrl(e.target.value)}
-                      className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
-                      placeholder="Paste image URL (e.g. https://...)"
-                    />
-                    <p className="text-[10px] text-zinc-500">Square or circular PNG/JPG logo used on receipts & menu headers</p>
+                  <div className="flex-1 space-y-2 w-full">
+                    <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs rounded-xl cursor-pointer border border-zinc-700 transition shrink-0">
+                        <Upload className="h-3.5 w-3.5 text-emerald-400" />
+                        Upload File
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        value={logoUrl}
+                        onChange={(e) => setLogoUrl(e.target.value)}
+                        className="w-full border border-zinc-800 bg-zinc-950 px-3.5 py-1.5 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-emerald-500/30"
+                        placeholder="Or paste direct image URL (https://...)"
+                      />
+                    </div>
+                    <p className="text-[10px] text-zinc-500">PNG, JPG, SVG or WebP logo file (Max 2MB). Automatically prints on thermal bills.</p>
                   </div>
                 </div>
               </div>
@@ -437,7 +465,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
               <div className="bg-white text-black font-mono p-5 rounded-2xl text-[11px] shadow-2xl space-y-2 border border-zinc-200 select-none max-w-sm mx-auto">
                 <div className="text-center font-bold border-b border-black/20 pb-2 space-y-1">
                   {logoUrl && (
-                    <img src={logoUrl} alt="Logo" className="max-h-12 max-w-[140px] w-auto h-auto object-contain mx-auto mb-1" />
+                    <img src={logoUrl} alt="Logo" className="max-h-14 max-w-[150px] w-auto h-auto object-contain mx-auto mb-1" />
                   )}
                   <p className="uppercase text-xs tracking-wider font-black">{receiptHeader || 'RESTAURANT NAME'}</p>
                   <p className="text-[10px] font-normal text-zinc-600">{address || 'Store Location Address'}</p>

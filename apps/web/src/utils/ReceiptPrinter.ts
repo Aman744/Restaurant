@@ -18,7 +18,7 @@ export class ReceiptPrinter {
     const footer = storedSettings?.receiptFooter || tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
     const gstinNumber = storedSettings?.gstNumber || '22AAAAA0000A1Z5';
     const rawLogo = storedSettings?.logoUrl || tenant?.logoUrl;
-    const logoUrl = (!rawLogo || rawLogo.includes('photo-1555396273') || rawLogo.includes('3170733')) ? 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png' : rawLogo;
+    const logoUrl = (rawLogo && rawLogo.trim().length > 0 && !rawLogo.includes('photo-1555396273')) ? rawLogo.trim() : 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png';
 
     let safeItems = Array.isArray(order?.items) ? order.items : [];
     if (safeItems.length === 0) {
