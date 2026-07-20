@@ -381,8 +381,10 @@ export const WaiterDashboard: React.FC = () => {
             </div>
             <div className="space-y-4">
               {activeOrders.map((o) => {
+                const isServed = o.status === 'served';
                 const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
-                const isReadyToServe = o.status === 'ready' || allItemsReady;
+                const isReadyToServe = !isServed && (o.status === 'ready' || allItemsReady);
+
                 let cardBorder = 'border-zinc-900 bg-zinc-905/30';
                 let badgeColor = 'bg-zinc-900 text-zinc-400 border-zinc-800';
 
@@ -392,7 +394,10 @@ export const WaiterDashboard: React.FC = () => {
                   cardBorder = 'border-emerald-500/40 bg-emerald-950/10 shadow-emerald-500/5';
                   badgeColor = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-black';
                 }
-                if (o.status === 'served') badgeColor = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                if (isServed) {
+                  cardBorder = 'border-blue-500/30 bg-blue-950/10 shadow-blue-500/5';
+                  badgeColor = 'bg-blue-500/20 text-blue-400 border-blue-500/30 font-black';
+                }
 
                 return (
                   <div key={o.id} className={`border p-4.5 rounded-2xl space-y-3.5 shadow-lg transition duration-200 ${cardBorder}`}>
@@ -415,47 +420,53 @@ export const WaiterDashboard: React.FC = () => {
 
                     {/* Order items status tracker */}
                     <div className="space-y-1.5 pt-1">
-                      {(o.items || []).map((item) => (
-                        <div key={item.id} className="flex justify-between items-center text-xs text-zinc-300 border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0">
-                          <span className="font-semibold">{item.quantity}x {item.name}</span>
-                          <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                            item.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-900 text-zinc-500'
-                          }`}>
-                            {item.status || 'cooking'}
-                          </span>
-                        </div>
-                      ))}
+                      {(o.items || []).map((item) => {
+                        const itemServed = item.status === 'served' || isServed;
+                        const itemReady = item.status === 'ready';
+                        return (
+                          <div key={item.id} className="flex justify-between items-center text-xs text-zinc-300 border-b border-zinc-900/40 pb-1.5 last:border-0 last:pb-0">
+                            <span className="font-semibold">{item.quantity}x {item.name}</span>
+                            <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                              itemServed ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                              itemReady ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                              'bg-zinc-900 text-zinc-500'
+                            }`}>
+                              {itemServed ? 'served' : itemReady ? 'ready' : 'cooking'}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Actions: Deliver/Serve */}
                     <div className="flex gap-2 pt-2 border-t border-zinc-900/60">
-                      {isReadyToServe ? (
+                      {isServed ? (
+                        <button
+                          onClick={() => handleUpdateOrderStatus(o.id, 'completed')}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          SERVED • COMPLETE ORDER
+                        </button>
+                      ) : isReadyToServe ? (
                         <button
                           onClick={() => handleUpdateOrderStatus(o.id, 'served')}
                           className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 animate-pulse"
                         >
                           <Send className="h-3.5 w-3.5" />
-                          Deliver to Table
+                          DELIVER TO TABLE
                         </button>
                       ) : o.status === 'preparing' ? (
                         <div className="w-full py-2.5 bg-zinc-950 text-orange-400 font-extrabold text-[10px] uppercase tracking-wider rounded-xl text-center border border-orange-500/20 flex items-center justify-center gap-2">
                           <Clock className="h-3.5 w-3.5 animate-spin text-orange-400" />
                           Kitchen Cooking...
                         </div>
-                      ) : (o.status === 'pending' || o.status === 'accepted') ? (
+                      ) : (
                         <div className="w-full py-2.5 bg-zinc-950 text-red-400 font-extrabold text-[10px] uppercase tracking-wider rounded-xl text-center border border-red-500/20 flex items-center justify-center gap-2">
                           <Clock className="h-3.5 w-3.5 text-red-400 animate-pulse" />
                           Waiting Kitchen Accept
                         </div>
-                      ) : o.status === 'served' ? (
-                        <button
-                          onClick={() => handleUpdateOrderStatus(o.id, 'completed')}
-                          className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 text-emerald-400 font-bold text-xs uppercase rounded-xl transition cursor-pointer text-center border border-zinc-800 flex items-center justify-center gap-2"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5" />
-                          Close / Complete Order
-                        </button>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 );
