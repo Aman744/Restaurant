@@ -120,7 +120,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
       </div>
 
       {/* Metric Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
         <RevenueCard totalRevenue={totalRevenue} currencySymbol={currencySymbol} />
         <KitchenLoadCard preparingOrdersCount={preparingOrders} />
         <OccupancyCard occupiedTablesCount={occupiedTables} totalTablesCount={safeTables.length} />
