@@ -152,6 +152,7 @@ export const InvoicesHistoryPage: React.FC = () => {
 
   // Calculations & Analytics
   const totalSettledRevenue = settledOrders.reduce((sum, o) => sum + (o.totals?.grandTotal || 0), 0);
+  const totalTaxCollected = settledOrders.reduce((sum, o) => sum + (o.totals?.tax || 0), 0);
   const totalInvoicesCount = settledOrders.length;
   const avgOrderValue = totalInvoicesCount > 0 ? totalSettledRevenue / totalInvoicesCount : 0;
 
@@ -352,6 +353,17 @@ export const InvoicesHistoryPage: React.FC = () => {
 
           <div className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-2 shadow-lg">
             <div className="flex justify-between items-center text-zinc-400">
+              <span className="text-xs font-bold uppercase tracking-wider">Total GST Tax Collected</span>
+              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+                <FileText className="h-4 w-4" />
+              </div>
+            </div>
+            <p className="text-2xl font-black text-amber-400">{currencySymbol}{totalTaxCollected.toFixed(2)}</p>
+            <p className="text-[10px] text-zinc-500 font-mono">Itemized GST (5%) & Service Tax</p>
+          </div>
+
+          <div className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-2 shadow-lg">
+            <div className="flex justify-between items-center text-zinc-400">
               <span className="text-xs font-bold uppercase tracking-wider">Average Order Value</span>
               <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl">
                 <ArrowUpRight className="h-4 w-4" />
@@ -364,7 +376,7 @@ export const InvoicesHistoryPage: React.FC = () => {
           <div className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-2 shadow-lg">
             <div className="flex justify-between items-center text-zinc-400">
               <span className="text-xs font-bold uppercase tracking-wider">Payment Breakdown</span>
-              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-xl">
+              <div className="p-2 bg-violet-500/10 text-violet-400 rounded-xl">
                 <CreditCard className="h-4 w-4" />
               </div>
             </div>
@@ -373,18 +385,7 @@ export const InvoicesHistoryPage: React.FC = () => {
               <span className="text-zinc-600">•</span>
               <span className="text-blue-400 font-bold">UPI: {currencySymbol}{upiTotal.toFixed(0)}</span>
             </div>
-            <p className="text-[10px] text-zinc-500 font-mono">Card: {currencySymbol}{cardTotal.toFixed(0)}</p>
-          </div>
-
-          <div className="border border-zinc-850 bg-zinc-900/60 p-5 rounded-3xl space-y-2 shadow-lg">
-            <div className="flex justify-between items-center text-zinc-400">
-              <span className="text-xs font-bold uppercase tracking-wider">Settled Receipts</span>
-              <div className="p-2 bg-violet-500/10 text-violet-400 rounded-xl">
-                <Receipt className="h-4 w-4" />
-              </div>
-            </div>
-            <p className="text-2xl font-black text-white">{totalInvoicesCount}</p>
-            <p className="text-[10px] text-zinc-500 font-mono">Completed dining sessions</p>
+            <p className="text-[10px] text-zinc-500 font-mono">Card: {currencySymbol}{cardTotal.toFixed(0)} ({totalInvoicesCount} bills)</p>
           </div>
         </div>
 
@@ -620,6 +621,8 @@ export const InvoicesHistoryPage: React.FC = () => {
                           <th className="px-5 py-4">Customer</th>
                           <th className="px-5 py-4">Date & Time</th>
                           <th className="px-5 py-4">Dishes Summary</th>
+                          <th className="px-5 py-4">Subtotal</th>
+                          <th className="px-5 py-4">GST Tax</th>
                           <th className="px-5 py-4">Payment Method</th>
                           <th className="px-5 py-4">Grand Total</th>
                           <th className="px-5 py-4 text-right">Action</th>
@@ -646,6 +649,12 @@ export const InvoicesHistoryPage: React.FC = () => {
                               <span className="line-clamp-1 font-medium">
                                 {(o.items || []).map((it) => `${it.quantity}x ${it.name}`).join(', ') || 'Standard Dishes'}
                               </span>
+                            </td>
+                            <td className="px-5 py-4 font-mono text-zinc-400 text-xs font-semibold">
+                              {currencySymbol}{(o.totals?.subtotal || 0).toFixed(2)}
+                            </td>
+                            <td className="px-5 py-4 font-mono text-amber-400 text-xs font-bold">
+                              {currencySymbol}{(o.totals?.tax || 0).toFixed(2)}
                             </td>
                             <td className="px-5 py-4">
                               <span className="text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
