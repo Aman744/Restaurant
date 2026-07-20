@@ -15,9 +15,10 @@ import {
   Clock,
   X,
   ShoppingBag,
-  CheckCircle2,
   ChevronRight,
-  Loader2
+  Loader2,
+  Bell,
+  Receipt
 } from 'lucide-react';
 
 const MOCK_MENU_KEY = 'restaurant_qr_mock_menu_db';
@@ -207,6 +208,80 @@ export const CustomerMenu: React.FC = () => {
     }
   }, [placedOrderId, tenantId, isMockMode]);
 
+  const formatOrderDateTime = (dateVal?: any) => {
+    if (!dateVal) return 'Just now';
+    let date: Date;
+    if (typeof dateVal?.toDate === 'function') {
+      date = dateVal.toDate();
+    } else if (dateVal instanceof Date) {
+      date = dateVal;
+    } else {
+      date = new Date(dateVal);
+    }
+
+    if (isNaN(date.getTime())) return 'Recently';
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+    return `${dateStr}, ${timeStr}`;
+  };
+
+  const handleCallWaiter = () => {
+    toast.success(`Waiter service call sent for ${tableName}!`);
+    if (isMockMode) {
+      const cachedAlerts = localStorage.getItem('restaurant_qr_waiter_alerts_db');
+      const alerts = cachedAlerts ? JSON.parse(cachedAlerts) : [];
+      alerts.push({
+        id: `alert_${Date.now()}`,
+        tableNumber: tableName,
+        type: 'call_waiter',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      localStorage.setItem('restaurant_qr_waiter_alerts_db', JSON.stringify(alerts));
+      window.dispatchEvent(new Event('storage'));
+    }
+  };
+
+  const handleRequestBill = async () => {
+    toast.success(`Bill request sent to Cashier for ${tableName}!`);
+    if (isMockMode) {
+      const cached = localStorage.getItem(MOCK_ORDERS_KEY);
+      if (cached && placedOrderId) {
+        try {
+          const parsed = JSON.parse(cached);
+          const updated = parsed.map((o: any) => {
+            if (o.id === placedOrderId) {
+              return {
+                ...o,
+                billRequested: true,
+                requestedBillAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return o;
+          });
+          localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+        } catch (e) {}
+      }
+
+      const cachedAlerts = localStorage.getItem('restaurant_qr_waiter_alerts_db');
+      const alerts = cachedAlerts ? JSON.parse(cachedAlerts) : [];
+      alerts.push({
+        id: `alert_bill_${Date.now()}`,
+        tableNumber: tableName,
+        type: 'bill_request',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      localStorage.setItem('restaurant_qr_waiter_alerts_db', JSON.stringify(alerts));
+      window.dispatchEvent(new Event('storage'));
+    } else if (placedOrderId) {
+      try {
+        await setDoc(doc(db, 'tenants', tenantId, 'orders', placedOrderId), { billRequested: true, requestedBillAt: new Date(), updatedAt: new Date() }, { merge: true });
+      } catch (err) {}
+    }
+  };
+
   // Cart operations
   const addToCart = (item: MenuItem) => {
     setCart((prev) => {
@@ -392,24 +467,112 @@ export const CustomerMenu: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-5">
-        {/* Track Active Order Banner */}
-        {placedOrderId && (
-          <div className="border border-emerald-500/30 bg-emerald-500/10 p-4 rounded-2xl space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-black uppercase text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4" />
-                Order Placed Successfully!
-              </span>
-              <span className="text-xs font-mono text-zinc-400">ID: #{placedOrderId}</span>
+        {/* Track Active Order Live Tracker */}
+        {placedOrderId && (() => {
+          const status = trackedOrder?.status || 'pending';
+          const isBillSent = Boolean((trackedOrder as any)?.billRequested || (trackedOrder as any)?.requestedBillAt);
+          let statusStep = 1; // 1: placed, 2: preparing, 3: ready, 4: served/completed
+          if (status === 'preparing' || status === 'accepted') statusStep = 2;
+          else if (status === 'ready') statusStep = 3;
+          else if (status === 'served' || status === 'completed') statusStep = 4;
+
+          return (
+            <div className="border border-emerald-500/40 bg-zinc-900/90 p-5 rounded-3xl space-y-4 shadow-2xl backdrop-blur-md animate-fadeIn">
+              <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-xl">
+                      {tableName}
+                    </span>
+                    <span className="text-sm font-extrabold text-white">
+                      Order #{placedOrderId.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-zinc-500" />
+                    Placed: {formatOrderDateTime(trackedOrder?.createdAt)}
+                  </p>
+                </div>
+
+                <div className="text-right space-y-1">
+                  <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-xl border ${
+                    status === 'ready' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 animate-pulse' :
+                    status === 'served' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                    status === 'completed' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' :
+                    'bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse'
+                  }`}>
+                    {status === 'ready' ? 'Food Ready!' :
+                     status === 'served' ? 'Served to Table' :
+                     status === 'completed' ? 'Settled & Paid' :
+                     status === 'preparing' ? 'Kitchen Cooking...' : 'Order Received'}
+                  </span>
+                  {isBillSent && status !== 'completed' && (
+                    <span className="block text-[9px] font-extrabold uppercase text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md mt-1">
+                      Bill Dispatched to Cashier
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Stepper Progress Bar */}
+              <div className="space-y-2 py-1">
+                <div className="grid grid-cols-4 gap-1 text-center text-[9px] font-bold text-zinc-400">
+                  <span className={statusStep >= 1 ? 'text-emerald-400' : ''}>Placed</span>
+                  <span className={statusStep >= 2 ? 'text-amber-400 font-extrabold' : ''}>Cooking</span>
+                  <span className={statusStep >= 3 ? 'text-emerald-400 font-extrabold' : ''}>Ready</span>
+                  <span className={statusStep >= 4 ? 'text-blue-400 font-extrabold' : ''}>Served</span>
+                </div>
+                <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden flex">
+                  <div className={`h-full transition-all duration-500 ${
+                    statusStep === 1 ? 'w-1/4 bg-amber-500' :
+                    statusStep === 2 ? 'w-2/4 bg-amber-500' :
+                    statusStep === 3 ? 'w-3/4 bg-emerald-500' :
+                    'w-full bg-blue-500'
+                  }`} />
+                </div>
+              </div>
+
+              {/* Itemized Dishes Status list */}
+              {trackedOrder?.items && trackedOrder.items.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-zinc-800/80">
+                  <p className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-wider">Ordered Dishes Status</p>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                    {trackedOrder.items.map((item) => (
+                      <div key={item.id} className="flex justify-between items-center text-xs text-zinc-200">
+                        <span className="font-semibold">{item.quantity}x {item.name}</span>
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                          item.status === 'ready' || item.status === 'served'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>
+                          {item.status === 'ready' ? 'Cooked' : item.status === 'served' ? 'Served' : 'Preparing'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons for Service & Bill */}
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  onClick={handleCallWaiter}
+                  className="py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl font-extrabold text-xs uppercase flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Bell className="h-3.5 w-3.5" />
+                  Call Waiter
+                </button>
+                <button
+                  onClick={handleRequestBill}
+                  className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  Request Bill
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-zinc-300">
-              Status:{' '}
-              <strong className="text-emerald-400 uppercase">
-                {trackedOrder?.status || 'Sent to Kitchen'}
-              </strong>
-            </p>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Search & Category Filter Bar */}
         <div className="space-y-3">
