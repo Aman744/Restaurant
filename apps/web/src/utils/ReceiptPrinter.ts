@@ -5,10 +5,19 @@ export class ReceiptPrinter {
    * Generates a pixel-perfect thermal receipt HTML template optimized for 80mm thermal printers & PDF output
    */
   static generateReceiptHtml(order: Order, tenant?: Tenant | null): string {
+    const tenantId = order?.tenantId || 'tenant_dev_123';
+    let storedSettings: any = null;
+    try {
+      const raw = localStorage.getItem(`restaurant_qr_settings_${tenantId}`);
+      if (raw) storedSettings = JSON.parse(raw);
+    } catch (e) {}
+
     const currency = '₹';
-    const restaurantName = tenant?.name || 'Aman\'s Restaurant & Bar';
-    const header = tenant?.theme?.receiptTheme?.header || 'TAX INVOICE / BILL RECEIPT';
-    const footer = tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
+    const restaurantName = storedSettings?.restaurantName || tenant?.name || 'Aman\'s Restaurant & Bar';
+    const header = storedSettings?.receiptHeader || tenant?.theme?.receiptTheme?.header || 'TAX INVOICE / BILL RECEIPT';
+    const footer = storedSettings?.receiptFooter || tenant?.theme?.receiptTheme?.footer || 'Thank you for dining with us! Visit again.';
+    const gstinNumber = storedSettings?.gstNumber || '22AAAAA0000A1Z5';
+    const logoUrl = storedSettings?.logoUrl || tenant?.logoUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=200&q=80';
 
     let safeItems = Array.isArray(order?.items) ? order.items : [];
     if (safeItems.length === 0) {
@@ -182,11 +191,11 @@ export class ReceiptPrinter {
           </style>
         </head>
         <body>
-          <!-- Header -->
-          ${tenant?.logoUrl ? `<div class="text-center" style="margin-bottom: 6px;"><img src="${tenant.logoUrl}" style="height: 40px; width: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #000;" /></div>` : ''}
+          <!-- Header Logo & Store Title -->
+          ${logoUrl ? `<div class="text-center" style="margin-bottom: 8px;"><img src="${logoUrl}" style="height: 52px; width: 52px; border-radius: 12px; object-fit: cover; border: 1.5px solid #000; display: block; margin: 0 auto;" /></div>` : ''}
           <div class="store-title">${restaurantName}</div>
           <div class="store-header">${header}</div>
-          <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: 22AAAAA0000A1Z5</div>
+          <div class="text-center" style="font-size: 10px; font-weight: bold; margin-top: 2px;">GSTIN: ${gstinNumber}</div>
           <div class="dashed-divider"></div>
 
           <!-- Meta Details Table -->
