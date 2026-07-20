@@ -373,11 +373,15 @@ export const WaiterDashboard: React.FC = () => {
     const hasActiveOrder = orders.some(
       (o) => (o.tableId === t.id || o.tableNumber === t.number) && 
              o.status !== 'completed' && 
-             o.status !== 'archived'
+             o.status !== 'archived' &&
+             o.payment?.status !== 'paid'
     );
 
     if (hasActiveOrder && t.status !== 'occupied') {
       return { ...t, status: 'occupied' as const };
+    }
+    if (!hasActiveOrder && t.status === 'occupied') {
+      return { ...t, status: 'cleaning' as const };
     }
     return t;
   });
