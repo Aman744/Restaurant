@@ -478,13 +478,35 @@ export const CustomerMenu: React.FC = () => {
                   <Clock className="h-3 w-3" />
                   {item.preparationTime || 10} mins
                 </span>
-                <button
-                  onClick={() => addToCart(item)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-500/10 transition"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Dish
-                </button>
+                {cart.find((c) => c.menuItem.id === item.id) ? (
+                  <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-xl shadow-inner">
+                    <button
+                      onClick={() => updateQuantity(item.id, -1)}
+                      className="p-1 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition"
+                      title="Decrease Quantity"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="font-extrabold text-xs text-emerald-400 min-w-[16px] text-center">
+                      {cart.find((c) => c.menuItem.id === item.id)?.quantity || 0}
+                    </span>
+                    <button
+                      onClick={() => updateQuantity(item.id, 1)}
+                      className="p-1 rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition"
+                      title="Increase Quantity"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => addToCart(item)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-500/10 transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Dish
+                  </button>
+                )}
               </div>
             </div>
           ))}
