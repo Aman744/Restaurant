@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, CheckCircle, Printer, X } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Printer, X, Bell } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { useToast } from '../../components/shared/ToastContext';
@@ -173,7 +173,11 @@ export const CashierDashboard: React.FC = () => {
     total: o.totals?.grandTotal || 0,
     itemsCount: (o.items || []).reduce((sum, it) => sum + (it.quantity || 1), 0),
     rawOrder: o
-  }));
+  })).sort((a, b) => {
+    const aReq = (a.rawOrder as any).requestedBillAt ? 1 : 0;
+    const bReq = (b.rawOrder as any).requestedBillAt ? 1 : 0;
+    return bReq - aReq;
+  });
 
   const handleSettle = async (billId: string) => {
     if (!selectedBill) return;
@@ -408,9 +412,15 @@ export const CashierDashboard: React.FC = () => {
                       </div>
                       <p className="text-[10px] text-zinc-500 mt-1 font-mono">Invoice #{b.id}</p>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                      {b.itemsCount} items
-                    </span>
+                    {(b.rawOrder as any).requestedBillAt ? (
+                      <span className="text-[9px] uppercase tracking-wider font-black px-2.5 py-1 rounded-xl border bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse flex items-center gap-1">
+                        <Bell className="h-3 w-3" /> WAITER BILL REQUEST
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                        {b.itemsCount} items
+                      </span>
+                    )}
                   </div>
 
                   {/* Itemized Dishes List on Card */}
