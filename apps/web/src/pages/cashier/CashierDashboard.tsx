@@ -244,6 +244,115 @@ export const CashierDashboard: React.FC = () => {
     }
   };
 
+  const renderSettlementForm = (bill: BillTicket) => (
+    <div className="border border-zinc-800 bg-zinc-900/60 p-5 sm:p-6 rounded-3xl space-y-5 shadow-2xl relative">
+      <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
+        <div>
+          <h4 className="font-black text-base sm:text-lg text-white">{bill.tableNumber}</h4>
+          <p className="text-[10px] text-zinc-500 font-mono">Settling invoice #{bill.id}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl">
+            UNPAID
+          </span>
+          <button
+            onClick={() => setSelectedBill(null)}
+            className="lg:hidden text-zinc-400 hover:text-white p-1 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Ordered Dishes Itemized List in Settlement Console */}
+      <div className="space-y-2 border-b border-zinc-800 pb-4">
+        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Ordered Dishes</p>
+        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+          {(bill.rawOrder.items || []).map((item) => (
+            <div key={item.id} className="flex justify-between text-xs text-zinc-200">
+              <span className="font-medium">{item.quantity}x {item.name}</span>
+              <span className="font-bold text-zinc-300">{currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 border-b border-zinc-800 pb-4 text-sm">
+        <div className="flex justify-between text-zinc-400 text-xs">
+          <span>Subtotal</span>
+          <span>{currencySymbol}{bill.subtotal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-zinc-400 text-xs">
+          <span>Tax (GST)</span>
+          <span>{currencySymbol}{bill.tax.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-zinc-400 text-xs">
+          <span>Service Charge</span>
+          <span>{currencySymbol}{bill.serviceCharge.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-white font-black text-base sm:text-lg pt-2 border-t border-zinc-850">
+          <span>Total Amount</span>
+          <span className="text-emerald-400">{currencySymbol}{bill.total.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Splitting Option */}
+      <div className="space-y-2">
+        <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Split Bill</label>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSplitCount(Math.max(1, splitCount - 1))}
+            className="h-9 w-9 rounded-xl bg-zinc-850 border border-zinc-750 flex items-center justify-center font-black text-zinc-200 cursor-pointer"
+          >
+            -
+          </button>
+          <span className="flex-1 text-center font-bold text-white text-xs">{splitCount} Guests</span>
+          <button
+            onClick={() => setSplitCount(splitCount + 1)}
+            className="h-9 w-9 rounded-xl bg-zinc-850 border border-zinc-750 flex items-center justify-center font-black text-zinc-200 cursor-pointer"
+          >
+            +
+          </button>
+        </div>
+
+        {splitCount > 1 && (
+          <div className="p-3 border border-emerald-500/20 bg-emerald-500/10 rounded-xl flex justify-between text-xs text-emerald-400 font-bold mt-2">
+            <span>Each Pays:</span>
+            <span>{currencySymbol}{(bill.total / splitCount).toFixed(2)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Payment Mode Selector */}
+      <div className="space-y-2">
+        <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Payment Method</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(['cash', 'card', 'upi'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setPaymentMode(mode)}
+              className={`py-2.5 px-3 text-[10px] font-black uppercase rounded-xl border transition cursor-pointer ${
+                paymentMode === mode
+                  ? 'bg-emerald-500 text-black border-emerald-600 shadow-md shadow-emerald-500/20'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:bg-zinc-850 hover:text-zinc-200'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={() => handleSettle(bill.id)}
+        className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-black py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2"
+      >
+        <Receipt className="h-4 w-4" />
+        Confirm Settle & Print Receipt
+      </button>
+    </div>
+  );
+
   if (loading) {
     return (
       <DashboardLayout title="Cashier Billing & POS" sidebarItems={sidebarItems}>
@@ -336,113 +445,28 @@ export const CashierDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Settle Panel Console */}
+          {/* Settle Panel Console (Desktop Side Column & Mobile Sheet) */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Settlement Console</h3>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider hidden lg:block">Settlement Console</h3>
 
-            {selectedBill ? (
-              <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-5 shadow-2xl">
-                <div className="flex justify-between items-start border-b border-zinc-800 pb-3">
-                  <div>
-                    <h4 className="font-black text-lg text-white">{selectedBill.tableNumber}</h4>
-                    <p className="text-[10px] text-zinc-500 font-mono">Settling invoice #{selectedBill.id}</p>
-                  </div>
-                  <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
-                    UNPAID
-                  </span>
+            {/* Desktop View */}
+            <div className="hidden lg:block">
+              {selectedBill ? (
+                renderSettlementForm(selectedBill)
+              ) : (
+                <div className="border border-dashed border-zinc-850 py-16 text-center text-zinc-500 rounded-3xl">
+                  <Receipt className="h-8 w-8 mx-auto text-zinc-600 mb-3" />
+                  <p className="text-xs font-semibold text-zinc-400">Select a pending bill to view settlement console</p>
                 </div>
+              )}
+            </div>
 
-                {/* Ordered Dishes Itemized List in Settlement Console */}
-                <div className="space-y-2 border-b border-zinc-800 pb-4">
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Ordered Dishes</p>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {(selectedBill.rawOrder.items || []).map((item) => (
-                      <div key={item.id} className="flex justify-between text-xs text-zinc-200">
-                        <span className="font-medium">{item.quantity}x {item.name}</span>
-                        <span className="font-bold text-zinc-300">{currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
+            {/* Mobile Sheet Drawer View */}
+            {selectedBill && (
+              <div className="lg:hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fadeIn">
+                <div className="w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl p-1 bg-zinc-950 border border-zinc-800 shadow-2xl">
+                  {renderSettlementForm(selectedBill)}
                 </div>
-
-                <div className="space-y-2 border-b border-zinc-800 pb-4 text-sm">
-                  <div className="flex justify-between text-zinc-400 text-xs">
-                    <span>Subtotal</span>
-                    <span>{currencySymbol}{selectedBill.subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-400 text-xs">
-                    <span>Tax (GST)</span>
-                    <span>{currencySymbol}{selectedBill.tax.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-400 text-xs">
-                    <span>Service Charge</span>
-                    <span>{currencySymbol}{selectedBill.serviceCharge.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-white font-black text-lg pt-2 border-t border-zinc-850">
-                    <span>Total Amount</span>
-                    <span className="text-emerald-400">{currencySymbol}{selectedBill.total.toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Splitting Option */}
-                <div className="space-y-2">
-                  <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Split Bill</label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSplitCount(Math.max(1, splitCount - 1))}
-                      className="h-9 w-9 rounded-xl bg-zinc-850 border border-zinc-750 flex items-center justify-center font-black text-zinc-200 cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <span className="flex-1 text-center font-bold text-white text-xs">{splitCount} Guests</span>
-                    <button
-                      onClick={() => setSplitCount(splitCount + 1)}
-                      className="h-9 w-9 rounded-xl bg-zinc-850 border border-zinc-750 flex items-center justify-center font-black text-zinc-200 cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {splitCount > 1 && (
-                    <div className="p-3 border border-emerald-500/20 bg-emerald-500/10 rounded-xl flex justify-between text-xs text-emerald-400 font-bold mt-2">
-                      <span>Each Pays:</span>
-                      <span>{currencySymbol}{(selectedBill.total / splitCount).toFixed(2)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Payment Mode Selector */}
-                <div className="space-y-2">
-                  <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Payment Method</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['cash', 'card', 'upi'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setPaymentMode(mode)}
-                        className={`py-2.5 px-3 text-[10px] font-black uppercase rounded-xl border transition cursor-pointer ${
-                          paymentMode === mode
-                            ? 'bg-emerald-500 text-black border-emerald-600 shadow-md shadow-emerald-500/20'
-                            : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:bg-zinc-850 hover:text-zinc-200'
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => handleSettle(selectedBill.id)}
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-black py-3.5 rounded-2xl shadow-xl shadow-emerald-500/20 text-xs uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Receipt className="h-4 w-4" />
-                  Confirm Settle & Print Receipt
-                </button>
-              </div>
-            ) : (
-              <div className="border border-dashed border-zinc-850 py-16 text-center text-zinc-500 rounded-3xl">
-                <Receipt className="h-8 w-8 mx-auto text-zinc-600 mb-3" />
-                <p className="text-xs font-semibold text-zinc-400">Select a pending bill to view settlement console</p>
               </div>
             )}
           </div>
