@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight, Download, Calendar } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { db } from '../../lib/firebase.js';
@@ -21,6 +21,11 @@ export const InvoicesHistoryPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedPaymentFilter, setSelectedPaymentFilter] = useState<string>('all');
   const [receiptModalOrder, setReceiptModalOrder] = useState<Order | null>(null);
+
+  // Date Filtering state
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [quickDateFilter, setQuickDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'month'>('all');
 
   // View Mode & Pagination state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -171,6 +176,40 @@ export const InvoicesHistoryPage: React.FC = () => {
 
       if (!modeMatches) return false;
 
+      // Date Filtering
+      const orderDate = new Date(o.updatedAt || o.createdAt || 0);
+      const now = new Date();
+
+      if (quickDateFilter === 'today') {
+        const isToday = orderDate.toDateString() === now.toDateString();
+        if (!isToday) return false;
+      } else if (quickDateFilter === 'yesterday') {
+        const yesterday = new Date();
+        yesterday.setDate(now.getDate() - 1);
+        const isYesterday = orderDate.toDateString() === yesterday.toDateString();
+        if (!isYesterday) return false;
+      } else if (quickDateFilter === 'week') {
+        const weekAgo = new Date();
+        weekAgo.setDate(now.getDate() - 7);
+        if (orderDate < weekAgo) return false;
+      } else if (quickDateFilter === 'month') {
+        const monthAgo = new Date();
+        monthAgo.setMonth(now.getMonth() - 1);
+        if (orderDate < monthAgo) return false;
+      }
+
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        if (orderDate < start) return false;
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        if (orderDate > end) return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesId = o.id.toLowerCase().includes(q);
@@ -182,6 +221,55 @@ export const InvoicesHistoryPage: React.FC = () => {
     })
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
 
+  // CSV Report Downloader
+  const handleDownloadCSV = () => {
+    if (filteredInvoices.length === 0) {
+      alert('No settled invoices match the selected date range and filter criteria.');
+      return;
+    }
+
+    const headers = [
+      'Invoice ID',
+      'Table Number',
+      'Customer Name',
+      'Date & Time',
+      'Dishes Ordered',
+      'Subtotal (INR)',
+      'GST Tax (INR)',
+      'Service Charge (INR)',
+      'Grand Total (INR)',
+      'Payment Method',
+      'Status'
+    ];
+
+    const rows = filteredInvoices.map((o) => {
+      const dishesStr = (o.items || []).map((it) => `${it.quantity}x ${it.name}`).join('; ');
+      return [
+        `"${o.id}"`,
+        `"${o.tableNumber || `Table ${o.tableId}`}"`,
+        `"${o.customerName || 'Guest Customer'}"`,
+        `"${formatOrderDateTime(o.updatedAt || o.createdAt)}"`,
+        `"${dishesStr}"`,
+        (o.totals?.subtotal || 0).toFixed(2),
+        (o.totals?.tax || 0).toFixed(2),
+        (o.totals?.serviceCharge || 0).toFixed(2),
+        (o.totals?.grandTotal || 0).toFixed(2),
+        `"${(o.payment?.method || 'CASH').toUpperCase()}"`,
+        '"PAID & SETTLED"'
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    const filename = `Settled_Invoices_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Pagination calculation
   const totalPages = Math.ceil(filteredInvoices.length / pageSize) || 1;
   const validCurrentPage = Math.min(currentPage, totalPages);
@@ -190,7 +278,7 @@ export const InvoicesHistoryPage: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedPaymentFilter]);
+  }, [searchQuery, selectedPaymentFilter, quickDateFilter, startDate, endDate]);
 
   if (loading) {
     return (
@@ -259,8 +347,74 @@ export const InvoicesHistoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Filter & Search Toolbar */}
-        <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 border-y border-zinc-900 py-4">
+        {/* Date Filter & Export Toolbar */}
+        <div className="border-y border-zinc-900 py-4 space-y-4">
+          <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
+            {/* Quick Date Presets */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1.5 mr-1">
+                <Calendar className="h-4 w-4 text-emerald-400" /> Date Range:
+              </span>
+              {[
+                { id: 'all', label: 'All Time' },
+                { id: 'today', label: 'Today' },
+                { id: 'yesterday', label: 'Yesterday' },
+                { id: 'week', label: 'This Week' },
+                { id: 'month', label: 'This Month' },
+              ].map((dt) => (
+                <button
+                  key={dt.id}
+                  onClick={() => {
+                    setQuickDateFilter(dt.id as any);
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    quickDateFilter === dt.id && !startDate && !endDate
+                      ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/20'
+                      : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-850 hover:text-white border border-zinc-800'
+                  }`}
+                >
+                  {dt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Date Pickers & Download Button */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setQuickDateFilter('all');
+                  }}
+                  className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+                />
+                <span className="text-xs text-zinc-500 font-bold">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setQuickDateFilter('all');
+                  }}
+                  className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/40 cursor-pointer"
+                />
+              </div>
+
+              <button
+                onClick={handleDownloadCSV}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download CSV Report
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 pt-3 border-t border-zinc-850/60">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
             <input
@@ -601,6 +755,7 @@ export const InvoicesHistoryPage: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </DashboardLayout>
   );
 };
