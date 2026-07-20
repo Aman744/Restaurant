@@ -116,22 +116,15 @@ export const MenuTab: React.FC<MenuTabProps> = ({
       header: 'Dish Details',
       accessorKey: 'name',
       sortable: true,
-      cell: (item) => {
-        const imageUrl =
-          item.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
-        return (
-          <div className="flex items-center gap-3">
-            <img src={imageUrl} alt={item.name} className="h-10 w-10 rounded-xl object-cover border border-zinc-800 shadow-md" />
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-white text-xs hover:text-emerald-400 transition">{item.name}</span>
-                {renderDietaryBadge(item.dietaryTags)}
-              </div>
-              <div className="text-[10px] text-zinc-500 truncate max-w-xs">{item.description || 'No description provided'}</div>
-            </div>
+      cell: (item) => (
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white text-xs hover:text-emerald-400 transition">{item.name}</span>
+            {renderDietaryBadge(item.dietaryTags)}
           </div>
-        );
-      }
+          <div className="text-[10px] text-zinc-500 truncate max-w-xs">{item.description || 'No description provided'}</div>
+        </div>
+      )
     },
     {
       header: 'Category',
@@ -306,12 +299,10 @@ export const MenuTab: React.FC<MenuTabProps> = ({
         )}
       </div>
 
-      {/* 3-Column Grid View Layout */}
+      {/* 3-Column Clean Grid View Layout (No Dish Images) */}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMenuItems.map((item) => {
-            const imageUrl =
-              item.images?.[0] || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
             const isInStock = item.stockStatus === 'in-stock';
 
             return (
@@ -320,36 +311,27 @@ export const MenuTab: React.FC<MenuTabProps> = ({
                 className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-3xl space-y-4 flex flex-col justify-between hover:border-emerald-500/40 transition shadow-xl group"
               >
                 <div className="space-y-3">
-                  <div className="relative overflow-hidden rounded-2xl border border-zinc-800">
-                    <img
-                      src={imageUrl}
-                      alt={item.name}
-                      className="w-full h-44 object-cover group-hover:scale-105 transition duration-300"
-                    />
-                    <div className="absolute top-3 left-3">
-                      {renderDietaryBadge(item.dietaryTags)}
-                    </div>
-                    <div className="absolute top-3 right-3">
-                      <span className="capitalize px-2.5 py-1 rounded-xl text-[10px] font-black bg-zinc-950/80 backdrop-blur-md border border-zinc-800 text-zinc-300 shadow-md">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-white text-base group-hover:text-emerald-400 transition">
+                          {item.name}
+                        </h4>
+                        {renderDietaryBadge(item.dietaryTags)}
+                      </div>
+                      <span className="capitalize text-[10px] font-bold text-zinc-400 bg-zinc-950 border border-zinc-850 px-2 py-0.5 rounded-lg mt-1 inline-block">
                         {item.categoryId || 'Mains'}
                       </span>
                     </div>
+                    <span className="font-black text-emerald-400 text-base">
+                      {currencySymbol}
+                      {(item.price || 0).toFixed(2)}
+                    </span>
                   </div>
 
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-extrabold text-white text-base group-hover:text-emerald-400 transition">
-                        {item.name}
-                      </h4>
-                      <span className="font-black text-emerald-400 text-base">
-                        {currencySymbol}
-                        {(item.price || 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-                      {item.description || 'No description provided.'}
-                    </p>
-                  </div>
+                  <p className="text-xs text-zinc-400 line-clamp-3 leading-relaxed">
+                    {item.description || 'No description provided.'}
+                  </p>
                 </div>
 
                 <div className="space-y-3 pt-2 border-t border-zinc-850">
