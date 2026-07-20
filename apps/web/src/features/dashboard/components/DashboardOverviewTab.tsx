@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List } from 'lucide-react';
 import { RevenueCard } from './RevenueCard';
@@ -22,6 +22,13 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   const safeTables = Array.isArray(tables) ? tables : [];
+
+  // Filter feed to show active new/ongoing orders only (excluding completed/archived)
+  const activeLiveOrders = useMemo(() => {
+    return safeOrders.filter(
+      (o) => o?.status && o.status !== 'completed' && o.status !== 'archived'
+    );
+  }, [safeOrders]);
 
   const totalRevenue = safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
   const preparingOrders = safeOrders.filter((o) => o?.status === 'preparing' || o?.status === 'accepted').length;
@@ -115,7 +122,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
             <ShoppingBag className="h-4 w-4 text-emerald-400" />
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">Live Operational Feed</h3>
             <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/20">
-              {safeOrders.length} Orders
+              {activeLiveOrders.length} Active Orders
             </span>
           </div>
 
@@ -154,10 +161,10 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
           </div>
         </div>
 
-        {/* Grid View Layout for Live Operational Feed */}
+        {/* 4-Column Grid View Layout for Live Operational Feed (1 Row 4 Cols) */}
         {feedViewMode === 'grid' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {safeOrders.slice(0, 9).map((order) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {activeLiveOrders.slice(0, 8).map((order) => {
               const itemsList = order.items || [];
 
               return (
@@ -172,9 +179,9 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                         <span className="font-black text-white text-base block group-hover:text-emerald-400 transition">
                           {order.tableNumber || `Table ${order.tableId}`}
                         </span>
-                        <span className="text-zinc-500 font-mono text-[10px]">ID: #{order.id}</span>
+                        <span className="text-zinc-500 font-mono text-[10px]">ID: #{order.id.slice(0, 10)}</span>
                       </div>
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-extrabold border ${getStatusBadgeClass(order.status)}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase font-extrabold border ${getStatusBadgeClass(order.status)}`}>
                         {order.status || 'pending'}
                       </span>
                     </div>
@@ -184,11 +191,11 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
                       {itemsList.length > 0 ? (
                         itemsList.slice(0, 3).map((item, idx) => (
                           <div key={idx} className="flex justify-between text-zinc-300">
-                            <span className="truncate max-w-[170px]">
+                            <span className="truncate max-w-[130px]">
                               <span className="text-emerald-400 font-bold mr-1">{item.quantity}x</span>
                               {item.name}
                             </span>
-                            <span className="text-zinc-500 font-mono text-[11px]">{currencySymbol}{(item.totalPrice || item.unitPrice || 0).toFixed(2)}</span>
+                            <span className="text-zinc-500 font-mono text-[10px]">{currencySymbol}{(item.totalPrice || item.unitPrice || 0).toFixed(2)}</span>
                           </div>
                         ))
                       ) : (
@@ -202,11 +209,11 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
 
                   {/* Card Footer */}
                   <div className="pt-2 border-t border-zinc-850 flex items-center justify-between text-xs">
-                    <span className="text-[11px] text-zinc-500 flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-500 flex items-center gap-1">
                       <Clock className="h-3 w-3 text-zinc-600" />
                       {getTimeAgo(order.createdAt)}
                     </span>
-                    <span className="font-extrabold text-white text-sm">
+                    <span className="font-extrabold text-white text-xs">
                       {currencySymbol}{(order.totals?.grandTotal || 0).toFixed(2)}
                     </span>
                   </div>
@@ -214,10 +221,10 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
               );
             })}
 
-            {safeOrders.length === 0 && (
+            {activeLiveOrders.length === 0 && (
               <div className="col-span-full py-16 text-center text-zinc-500 text-xs border border-zinc-850 rounded-2xl">
                 <ShoppingBag className="h-8 w-8 mx-auto text-zinc-700 mb-2" />
-                No active orders in the live operational feed.
+                No new or active live orders in the operational feed.
               </div>
             )}
           </div>
@@ -226,7 +233,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
         {/* List View Layout */}
         {feedViewMode === 'list' && (
           <div className="divide-y divide-zinc-850">
-            {safeOrders.slice(0, 6).map((order) => {
+            {activeLiveOrders.slice(0, 6).map((order) => {
               const itemsSummary = (order.items || [])
                 .map((i) => `${i.quantity}x ${i.name}`)
                 .join(', ');
@@ -262,10 +269,10 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
               );
             })}
 
-            {safeOrders.length === 0 && (
+            {activeLiveOrders.length === 0 && (
               <div className="py-12 text-center text-zinc-500 text-xs">
                 <ShoppingBag className="h-8 w-8 mx-auto text-zinc-700 mb-2" />
-                No live orders in the operational feed.
+                No new or active live orders in the operational feed.
               </div>
             )}
           </div>
