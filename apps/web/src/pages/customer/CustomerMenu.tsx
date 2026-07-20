@@ -15,7 +15,9 @@ import {
   Clock,
   X,
   ShoppingBag,
-  CheckCircle2
+  CheckCircle2,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 
 const MOCK_MENU_KEY = 'restaurant_qr_mock_menu_db';
@@ -99,6 +101,7 @@ export const CustomerMenu: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,7 +129,6 @@ export const CustomerMenu: React.FC = () => {
     setTableName(formatTableName(tableId));
 
     if (isMockMode) {
-      // Load mock menu
       const cached = localStorage.getItem(MOCK_MENU_KEY);
       if (cached && active) {
         const parsed = JSON.parse(cached);
@@ -135,7 +137,6 @@ export const CustomerMenu: React.FC = () => {
         setMenuItems(DEFAULT_SAMPLE_MENU);
       }
 
-      // Load mock table number
       const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
       if (cachedTables) {
         try {
@@ -150,14 +151,12 @@ export const CustomerMenu: React.FC = () => {
       setRestaurantName('Aman\'s Restaurant & Bar');
       setLoading(false);
     } else {
-      // 1. Fetch Tenant Name
       getDoc(doc(db, 'tenants', tenantId)).then((snap: any) => {
         if (snap.exists() && active) {
           setRestaurantName(snap.data().name || 'Aman\'s Restaurant & Bar');
         }
       });
 
-      // 2. Fetch Menu Items (live updates)
       const menuCol = collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter);
       const unsub = onSnapshot(menuCol, (snap: any) => {
         if (active) {
@@ -167,7 +166,6 @@ export const CustomerMenu: React.FC = () => {
         }
       });
 
-      // 3. Fetch Table details
       getDoc(doc(db, 'tenants', tenantId, 'tables', tableId)).then((snap: any) => {
         if (active && snap.exists()) {
           const tData = snap.data();
@@ -262,7 +260,8 @@ export const CustomerMenu: React.FC = () => {
   });
 
   const handlePlaceOrder = async () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0 || isSubmittingOrder) return;
+    setIsSubmittingOrder(true);
 
     const orderId = `ord_${Math.floor(Math.random() * 900000 + 100000)}`;
 
@@ -352,6 +351,8 @@ export const CustomerMenu: React.FC = () => {
       setIsCartOpen(false);
     } catch (err: any) {
       toast.error(`Order placement failed: ${err.message}`);
+    } finally {
+      setIsSubmittingOrder(false);
     }
   };
 
@@ -365,7 +366,7 @@ export const CustomerMenu: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-28">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans pb-32">
       {/* Top Header Banner */}
       <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-850 px-4 py-3.5 flex items-center justify-between">
         <div>
@@ -490,6 +491,30 @@ export const CustomerMenu: React.FC = () => {
         </div>
       </main>
 
+      {/* Sticky Bottom Floating Cart Action Bar */}
+      {totalCartCount > 0 && !isCartOpen && (
+        <div className="fixed bottom-4 left-0 right-0 z-40 px-4 max-w-lg mx-auto">
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="w-full flex items-center justify-between px-5 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs rounded-2xl shadow-2xl shadow-emerald-500/30 transition transform hover:scale-[1.01]"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-xl bg-white/20 flex items-center justify-center font-extrabold text-xs text-white">
+                {totalCartCount}
+              </div>
+              <div className="text-left">
+                <span className="block text-xs uppercase tracking-wider font-extrabold">View Cart Order</span>
+                <span className="text-[10px] text-emerald-100 font-medium">{tableName} • Ready to submit</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-mono font-black">
+              <span>₹{cartTotal.toFixed(2)}</span>
+              <ChevronRight className="h-4 w-4" />
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* Cart Drawer Modal */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4">
@@ -559,9 +584,17 @@ export const CustomerMenu: React.FC = () => {
 
             <button
               onClick={handlePlaceOrder}
-              className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition"
+              disabled={isSubmittingOrder}
+              className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              Confirm & Submit Table Order
+              {isSubmittingOrder ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <span>Sending Order to Kitchen...</span>
+                </>
+              ) : (
+                <span>Confirm & Submit Table Order • ₹{cartTotal.toFixed(2)}</span>
+              )}
             </button>
           </div>
         </div>
