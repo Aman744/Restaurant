@@ -23,7 +23,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
   const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');
   const [phone, setPhone] = useState('+91 98765 43210');
   const [address, setAddress] = useState('123 Gourmet Avenue, Food City');
-  const [logoUrl, setLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/1046/1046784.png');
+  const [logoUrl, setLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/3075/3075977.png');
 
   // Receipt Customization
   const [receiptHeader, setReceiptHeader] = useState('Gourmet Dining & QR Bar');
@@ -44,7 +44,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     const fetchSettings = async () => {
       setLoading(true);
       try {
-        const defaultBrandLogo = 'https://cdn-icons-png.flaticon.com/512/1046/1046784.png';
+        const defaultBrandLogo = 'https://cdn-icons-png.flaticon.com/512/3075/3075977.png';
         if (isMockMode) {
           const stored = localStorage.getItem(`restaurant_qr_settings_${tenantId}`);
           if (stored) {
