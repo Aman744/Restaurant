@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee, FileText } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee, FileText, Download } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { useToast } from '../../components/shared/ToastContext';
@@ -207,6 +207,46 @@ export const CashierDashboard: React.FC = () => {
     const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
     return timeB - timeA;
   });
+
+  const handleDownloadSingleInvoice = (order: Order) => {
+    const lines = [
+      `========================================`,
+      `          ${(tenant?.name || 'RESTAURANT POS').toUpperCase()}          `,
+      `       OFFICIAL TAX INVOICE & RECEIPT      `,
+      `========================================`,
+      `Invoice ID: #${order.id}`,
+      `Date/Time:  ${formatOrderDateTime(order.updatedAt || order.createdAt)}`,
+      `Table:      ${order.tableNumber || `Table ${order.tableId || '1'}`}`,
+      `Customer:   ${order.customerName || 'Guest Customer'}`,
+      `Payment:    PAID (${(order.payment?.method || 'CASH').toUpperCase()})`,
+      `----------------------------------------`,
+      `ITEM                     QTY   PRICE    TOTAL`,
+      `----------------------------------------`,
+      ...(order.items || []).map(
+        (it) =>
+          `${(it.name || 'Dish').padEnd(24).slice(0, 24)} ${it.quantity.toString().padStart(3)}  ${(currencySymbol + (it.unitPrice || 0).toFixed(2)).padStart(8)}  ${(currencySymbol + (it.totalPrice || (it.unitPrice || 0) * (it.quantity || 1)).toFixed(2)).padStart(9)}`
+      ),
+      `----------------------------------------`,
+      `Subtotal:       ${currencySymbol}${(order.totals?.subtotal || 0).toFixed(2)}`,
+      `GST Tax (5%):   ${currencySymbol}${(order.totals?.tax || 0).toFixed(2)}`,
+      `Service Charge: ${currencySymbol}${(order.totals?.serviceCharge || 0).toFixed(2)}`,
+      `----------------------------------------`,
+      `GRAND TOTAL:    ${currencySymbol}${(order.totals?.grandTotal || 0).toFixed(2)}`,
+      `========================================`,
+      `     Thank you for dining with us!      `,
+      `========================================`
+    ].join('\n');
+
+    const blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Invoice_${order.id.slice(-6).toUpperCase()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const handleSettle = async (billId: string) => {
     if (!selectedBill) return;
@@ -648,20 +688,21 @@ export const CashierDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Common Action Buttons: Print & Download */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
               <button
                 onClick={() => window.print()}
-                className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs uppercase rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5"
+                className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-black text-xs uppercase rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
               >
                 <Printer className="h-4 w-4" />
                 Print Receipt
               </button>
               <button
-                onClick={() => setReceiptModalOrder(null)}
-                className="py-2.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-bold text-xs uppercase rounded-xl border border-zinc-800 transition cursor-pointer text-center"
+                onClick={() => handleDownloadSingleInvoice(receiptModalOrder)}
+                className="py-2.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-200 font-bold text-xs uppercase rounded-xl border border-zinc-800 transition cursor-pointer flex items-center justify-center gap-1.5"
               >
-                Close Window
+                <Download className="h-4 w-4 text-emerald-400" />
+                Download Invoice
               </button>
             </div>
           </div>
