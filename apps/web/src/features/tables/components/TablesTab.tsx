@@ -250,9 +250,9 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
         })}
       </div>
 
-      {/* Grid View Mode: 2 Columns Per Row */}
+      {/* Grid View Mode: 3 Columns Per Row */}
       {viewMode === 'grid' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {filteredTables.map((table) => {
             const isOccupied = table.status === 'occupied';
 
