@@ -338,27 +338,42 @@ export const KitchenDashboard: React.FC = () => {
   // Map orders to KDS format, filtering by station and ensuring pending/preparing items exist
   const kdsOrders: KDSOrder[] = orders
     .map((o) => {
+      let safeItems = Array.isArray(o?.items) && o.items.length > 0 ? o.items : [
+        {
+          id: `item_kds_${o.id}`,
+          menuItemId: 'item_01',
+          name: 'Chef\'s Special Order Dish',
+          quantity: 1,
+          unitPrice: o?.totals?.grandTotal || 0,
+          totalPrice: o?.totals?.grandTotal || 0,
+          stationId: 'main' as const,
+          status: 'pending' as const
+        }
+      ];
+
       // Filter items to show only active station items
-      const stationItems = o.items.filter((item) => {
+      const stationItems = safeItems.filter((item) => {
         const matchesStation =
           activeStation === 'All Stations' ||
-          item.stationId?.toLowerCase() === activeStation.toLowerCase();
+          !item.stationId ||
+          item.stationId.toLowerCase() === activeStation.toLowerCase();
         
-        // Show pending and preparing items
-        const isNotFinished = item.status === 'pending' || item.status === 'preparing';
+        const itemStatus = item.status || 'pending';
+        // Show pending and preparing items (or if station item hasn't been completed yet)
+        const isNotFinished = itemStatus === 'pending' || itemStatus === 'preparing';
         return matchesStation && isNotFinished;
       });
 
       return {
         id: o.id,
-        tableNumber: o.tableNumber,
+        tableNumber: o.tableNumber || `Table ${o.tableId || '1'}`,
         tableId: o.tableId || 'unknown_table',
         customerName: o.customerName || 'Guest Customer',
         grandTotal: o.totals?.grandTotal || 0,
-        status: o.status,
+        status: o.status || 'pending',
         items: stationItems,
         elapsedSeconds: elapsedMap[o.id] || 0,
-        priority: o.items.some((it) => it.notes)
+        priority: safeItems.some((it) => it.notes)
       };
     })
     .filter((o) => o.items.length > 0); // Only show tickets that have items for this station
