@@ -251,6 +251,8 @@ export const WaiterDashboard: React.FC = () => {
             if (o.id === orderId) {
               return {
                 ...o,
+                billRequested: true,
+                requestedBillAt: new Date().toISOString(),
                 payment: { ...o.payment, status: 'unpaid' },
                 updatedAt: new Date().toISOString()
               };
@@ -263,7 +265,7 @@ export const WaiterDashboard: React.FC = () => {
       }
     } else {
       try {
-        await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { 'payment.status': 'unpaid', updatedAt: new Date() }, { merge: true });
+        await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { billRequested: true, requestedBillAt: new Date(), 'payment.status': 'unpaid', updatedAt: new Date() }, { merge: true });
       } catch (err) {
         console.error('Failed to send bill to cashier:', err);
       }

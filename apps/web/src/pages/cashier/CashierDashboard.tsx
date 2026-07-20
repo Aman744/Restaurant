@@ -67,8 +67,11 @@ export const CashierDashboard: React.FC = () => {
               return { ...o, items };
             });
 
+            const isBillRequested = (o: any) => Boolean(o.billRequested === true || o.requestedBillAt);
+
             const activeUnpaid = normalized.filter(
-              (o) => o.payment?.status !== 'paid' && 
+              (o: any) => isBillRequested(o) &&
+                     o.payment?.status !== 'paid' && 
                      o.status !== 'completed' && 
                      o.status !== 'archived'
             );
@@ -139,7 +142,8 @@ export const CashierDashboard: React.FC = () => {
             updatedAt: toDate(data.updatedAt)
           } as Order;
 
-          if (data.payment?.status !== 'paid' && data.status !== 'completed' && data.status !== 'archived') {
+          const isRequested = Boolean(data.billRequested === true || data.requestedBillAt);
+          if (isRequested && data.payment?.status !== 'paid' && data.status !== 'completed' && data.status !== 'archived') {
             activeUnpaid.push(orderObj);
           } else if (data.payment?.status === 'paid' || data.status === 'completed') {
             paidOrders.push(orderObj);
