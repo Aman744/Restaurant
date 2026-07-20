@@ -247,12 +247,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
         {/* User Card & Logout */}
         <div className="p-4 border-t border-zinc-900 space-y-4">
           <div className="flex items-center gap-3 px-2">
-            <div className="h-9 w-9 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
+            <div className="h-9 w-9 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
               <User className="h-4.5 w-4.5" />
             </div>
-            <div className="overflow-hidden">
-              <h4 className="text-xs font-semibold text-zinc-200 truncate">{profile?.displayName}</h4>
+            <div className="overflow-hidden space-y-1">
+              <h4 className="text-xs font-semibold text-zinc-200 truncate">{profile?.displayName || 'User'}</h4>
               <p className="text-[10px] text-zinc-500 truncate">{profile?.email}</p>
+              {profile?.role && (
+                <span className="inline-block text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                  {profile.role.replace('-', ' ')}
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -441,13 +446,29 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                     })}
                   </nav>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 border border-zinc-800 bg-zinc-900/60 py-2.5 text-xs font-medium rounded-xl text-zinc-400 transition"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Log Out
-                </button>
+                <div className="space-y-4 pt-4 border-t border-zinc-900">
+                  <div className="flex items-center gap-3 px-2">
+                    <div className="h-9 w-9 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+                      <User className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="overflow-hidden space-y-1">
+                      <h4 className="text-xs font-semibold text-zinc-200 truncate">{profile?.displayName || 'User'}</h4>
+                      <p className="text-[10px] text-zinc-500 truncate">{profile?.email}</p>
+                      {profile?.role && (
+                        <span className="inline-block text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                          {profile.role.replace('-', ' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 border border-zinc-800 bg-zinc-900/60 py-2.5 text-xs font-medium rounded-xl text-zinc-400 transition"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Log Out
+                  </button>
+                </div>
               </motion.aside>
             </>
           )}
