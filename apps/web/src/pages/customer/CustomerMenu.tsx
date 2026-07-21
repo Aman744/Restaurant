@@ -127,7 +127,7 @@ export const CustomerMenu: React.FC = () => {
   const { tenantId, tableId } = resolveParams();
 
   // Database / state values
-  const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');
+  const [restaurantName, setRestaurantName] = useState(() => `Restaurant (${tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -164,7 +164,6 @@ export const CustomerMenu: React.FC = () => {
     // Fallback timer: Guarantee loading is cleared after 1.5 seconds under all conditions
     const fallbackTimer = setTimeout(() => {
       if (active) {
-        setMenuItems((prev) => (prev.length > 0 ? prev : DEFAULT_SAMPLE_MENU));
         setLoading(false);
       }
     }, 1500);
