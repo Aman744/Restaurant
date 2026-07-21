@@ -51,3 +51,16 @@ html.light textarea {
   border-color: #e4e4e7;
   color: #18181b;
 }
+
+/* Accidental Touch / Double-Click & Tap Zoom delay prevention across complete app */
+button, input, select, textarea, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Global button/input disabled states to prevent double submissions */
+button:disabled, input:disabled, select:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+}

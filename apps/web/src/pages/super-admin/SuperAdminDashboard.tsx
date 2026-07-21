@@ -22,7 +22,11 @@ import {
   Zap,
   Sliders,
   Edit3,
-  Trash2
+  Trash2,
+  Loader2,
+  Building2,
+  Sparkles,
+  X
 } from 'lucide-react';
 import type { Tenant } from '@restaurant-qr/core';
 import { useToast } from '../../components/shared/ToastContext';
@@ -48,6 +52,7 @@ export const SuperAdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isProvisioning, setIsProvisioning] = useState(false);
   const [newTenantName, setNewTenantName] = useState('');
   const [newTenantPlan, setNewTenantPlan] = useState<'starter' | 'growth' | 'enterprise'>('starter');
   const [newTenantDomain, setNewTenantDomain] = useState('');
@@ -180,8 +185,9 @@ export const SuperAdminDashboard: React.FC = () => {
 
   const handleAddTenant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTenantName.trim()) return;
+    if (!newTenantName.trim() || isProvisioning) return;
 
+    setIsProvisioning(true);
     try {
       const newTenant = await tenantService.provisionTenant(
         newTenantName,
@@ -207,6 +213,8 @@ export const SuperAdminDashboard: React.FC = () => {
       setShowAddModal(false);
     } catch (err: any) {
       toast.error(`Failed to provision tenant: ${err.message}`);
+    } finally {
+      setIsProvisioning(false);
     }
   };
 
@@ -897,104 +905,141 @@ export const SuperAdminDashboard: React.FC = () => {
 
       {/* Add Tenant Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 ${isProvisioning ? 'pointer-events-none' : ''}`}>
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-md border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-2xl text-white animate-fade-in"
+            className="w-full max-w-md border border-zinc-850 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white relative overflow-hidden"
           >
-            <h3 className="text-lg font-bold text-white mb-2">Provision New Tenant</h3>
-            <p className="text-xs text-zinc-500 mb-6">Create database namespaces and subscription access configurations</p>
+            {isProvisioning && (
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center gap-3 animate-fadeIn">
+                <Loader2 className="h-9 w-9 animate-spin text-emerald-400" />
+                <p className="text-xs font-bold text-zinc-300 uppercase tracking-widest animate-pulse">Provisioning Database...</p>
+              </div>
+            )}
 
+            <button
+              type="button"
+              disabled={isProvisioning}
+              onClick={() => setShowAddModal(false)}
+              className="absolute top-4 right-4 p-1.5 border border-zinc-850 rounded-xl text-zinc-400 hover:text-white transition disabled:opacity-30"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 className="h-5 w-5 text-emerald-400" />
+              <h3 className="text-base font-extrabold text-white">Provision New Tenant</h3>
+            </div>
+            <p className="text-xs text-zinc-400 mb-6">Create dedicated database namespaces, settings registry, and subscription credentials.</p>
+ 
             <form onSubmit={handleAddTenant} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Tenant/Restaurant Name</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Tenant / Restaurant Name</label>
                 <input
                   type="text"
                   required
+                  disabled={isProvisioning}
                   value={newTenantName}
                   onChange={(e) => setNewTenantName(e.target.value)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
-                  placeholder="e.g. Sushi Bar"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3.5 pr-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl disabled:opacity-50"
+                  placeholder="e.g. Himanshu Restaurant"
                 />
               </div>
-
+ 
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Custom Domain Mapping</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Custom Domain Mapping</label>
                 <input
                   type="text"
+                  disabled={isProvisioning}
                   value={newTenantDomain}
                   onChange={(e) => setNewTenantDomain(e.target.value)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
-                  placeholder="e.g. sushibar.com (optional)"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3.5 pr-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl disabled:opacity-50"
+                  placeholder="e.g. himanshurestaurant.com (optional)"
                 />
               </div>
-
+ 
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Subscription Plan</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Subscription Plan</label>
                 <select
+                  disabled={isProvisioning}
                   value={newTenantPlan}
                   onChange={(e) => setNewTenantPlan(e.target.value as any)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3 pr-3 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl cursor-pointer disabled:opacity-50"
                 >
                   <option value="starter">Starter Plan (₹99/mo)</option>
                   <option value="growth">Growth Plan (₹249/mo)</option>
                   <option value="enterprise">Enterprise Plan (₹499/mo)</option>
                 </select>
               </div>
-
-              <div className="h-px bg-zinc-900 my-4" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3">Restaurant Admin Account</h4>
-
+ 
+              <div className="h-px bg-zinc-900 my-5" />
+              <div className="flex items-center gap-1.5 mb-3">
+                <Sparkles className="h-4 w-4 text-emerald-400" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400">Restaurant Admin Account</h4>
+              </div>
+ 
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Admin Full Name</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Admin Full Name</label>
                 <input
                   type="text"
                   required
+                  disabled={isProvisioning}
                   value={adminName}
                   onChange={(e) => setAdminName(e.target.value)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
-                  placeholder="e.g. Alice Manager"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3.5 pr-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl disabled:opacity-50"
+                  placeholder="e.g. Himanshu Manager"
                 />
               </div>
-
+ 
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Admin Email Address</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Admin Email Address</label>
                 <input
                   type="email"
                   required
+                  disabled={isProvisioning}
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
-                  placeholder="admin@sushibar.com"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3.5 pr-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl disabled:opacity-50"
+                  placeholder="himanshu@restaurant.com"
                 />
               </div>
-
+ 
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400 font-semibold">Admin Password</label>
+                <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Admin Password</label>
                 <input
                   type="password"
                   required
+                  disabled={isProvisioning}
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full border border-zinc-800 bg-zinc-900 pl-3 pr-3 py-2.5 text-sm focus:border-zinc-700 focus:outline-none text-zinc-200 rounded-xl"
+                  className="w-full border border-zinc-850 bg-zinc-900 pl-3.5 pr-3.5 py-2.5 text-xs focus:outline-none focus:border-emerald-500/40 text-zinc-200 rounded-xl disabled:opacity-50"
                   placeholder="••••••••"
                 />
               </div>
-
+ 
               <div className="flex gap-3 justify-end mt-6">
                 <button
                   type="button"
+                  disabled={isProvisioning}
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                  className="px-4 py-2 border border-zinc-850 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
+                  disabled={isProvisioning}
+                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
-                  Create Tenant
+                  {isProvisioning ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Provisioning...</span>
+                    </>
+                  ) : (
+                    <span>Create Tenant</span>
+                  )}
                 </button>
               </div>
             </form>
