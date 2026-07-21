@@ -163,8 +163,7 @@ export class TenantService {
           const adminUid = credential.user.uid;
           await authSignOut(secondaryAuth);
 
-          // 5. Direct Firestore write: User profile document
-          await setDoc(doc(db, 'users', adminUid), {
+          const adminUserProfile = {
             uid: adminUid,
             email: adminEmail.toLowerCase(),
             displayName: adminName || adminEmail.split('@')[0].toUpperCase(),
@@ -172,7 +171,13 @@ export class TenantService {
             tenantId,
             permissions: ['dashboard', 'menu', 'tables', 'staff', 'reports', 'inventory', 'reservations', 'settings'],
             createdAt: serverTimestamp()
-          });
+          };
+
+          // 5. Direct Firestore write: Global user registry document
+          await setDoc(doc(db, 'users', adminUid), adminUserProfile);
+
+          // 6. Direct Firestore write: Tenant staff subcollection document
+          await setDoc(doc(db, 'tenants', tenantId, 'staff', adminUid), adminUserProfile);
         } catch (authErr: any) {
           console.error('Authentication user registration failed during tenant provisioning:', authErr);
           if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
