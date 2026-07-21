@@ -179,32 +179,12 @@ export const CustomerMenu: React.FC = () => {
             (m) => m.tenantId === tenantId && m.isActive !== false
           );
 
-          if (tenantMenuItems.length > 0) {
-            setMenuItems(tenantMenuItems);
-          } else {
-            // Generate isolated sample menu items bound specifically to THIS tenantId
-            const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
-              ...item,
-              id: `${tenantId}_${item.id}`,
-              tenantId
-            }));
-            setMenuItems(isolatedSampleMenu);
-          }
+          setMenuItems(tenantMenuItems);
         } catch (e) {
-          const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
-            ...item,
-            id: `${tenantId}_${item.id}`,
-            tenantId
-          }));
-          setMenuItems(isolatedSampleMenu);
+          setMenuItems([]);
         }
       } else if (active) {
-        const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
-          ...item,
-          id: `${tenantId}_${item.id}`,
-          tenantId
-        }));
-        setMenuItems(isolatedSampleMenu);
+        setMenuItems([]);
       }
 
       // Check tenant name in mock DB
@@ -251,29 +231,14 @@ export const CustomerMenu: React.FC = () => {
         (snap: any) => {
           if (active) {
             const items = snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive);
-            if (items.length > 0) {
-              setMenuItems(items);
-            } else {
-              // Isolated default fallback bound specifically to THIS tenantId
-              const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
-                ...item,
-                id: `${tenantId}_${item.id}`,
-                tenantId
-              }));
-              setMenuItems(isolatedSampleMenu);
-            }
+            setMenuItems(items);
             setLoading(false);
           }
         },
         (err) => {
-          console.warn('Firestore snapshot permission fallback:', err);
+          console.warn('Firestore snapshot notice:', err);
           if (active) {
-            const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
-              ...item,
-              id: `${tenantId}_${item.id}`,
-              tenantId
-            }));
-            setMenuItems(isolatedSampleMenu);
+            setMenuItems([]);
             setLoading(false);
           }
         }
@@ -736,8 +701,19 @@ export const CustomerMenu: React.FC = () => {
         </div>
 
         {/* Menu Catalog Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filteredMenuItems.map((item) => (
+        {filteredMenuItems.length === 0 ? (
+          <div className="border border-zinc-850 bg-zinc-900/40 rounded-3xl p-8 text-center space-y-3 my-4 shadow-xl">
+            <div className="h-12 w-12 rounded-2xl bg-zinc-800/80 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-750">
+              <Utensils className="h-6 w-6 text-zinc-400" />
+            </div>
+            <h3 className="text-base font-extrabold text-white">No Dishes Available Yet</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+              This restaurant has not added any active menu items yet. If you are the restaurant admin, please add dishes in your Admin Panel.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredMenuItems.map((item) => (
             <div
               key={item.id}
               className="border border-zinc-850 bg-zinc-900/60 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-zinc-750 transition shadow-lg"
@@ -795,6 +771,7 @@ export const CustomerMenu: React.FC = () => {
             </div>
           ))}
         </div>
+        )}
       </main>
 
       {/* Sticky Bottom Floating Cart Action Bar */}
