@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from './lib/firebase.js';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './features/auth/context/AuthContext';
 import { UserProvider } from './features/auth/context/UserContext';
@@ -79,7 +79,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <Router>
         <AuthProvider>
           <UserProvider>
             <TenantProvider>
@@ -93,7 +93,7 @@ function App() {
             </TenantProvider>
           </UserProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </Router>
     </QueryClientProvider>
   );
 }
