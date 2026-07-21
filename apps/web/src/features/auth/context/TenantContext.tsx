@@ -32,17 +32,23 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setLoading(true);
       try {
         if (isMockMode) {
-          const cached = localStorage.getItem(`restaurant_qr_mock_tenant_info_${profile.tenantId}`);
-          let brandName = 'Le Bistro Parisien (Sandbox)';
+          const cachedInfo = localStorage.getItem(`restaurant_qr_mock_tenant_info_${profile.tenantId}`);
+          const cachedTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
+          let brandName = `Restaurant (${profile.tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`;
           let logoUrl: string | undefined = undefined;
-          if (cached) {
+
+          if (cachedInfo) {
             try {
-              const parsed = JSON.parse(cached);
-              brandName = parsed.name || brandName;
-              logoUrl = parsed.logoUrl || undefined;
-            } catch (e) {
-              console.error(e);
-            }
+              const parsed = JSON.parse(cachedInfo);
+              if (parsed.name) brandName = parsed.name;
+              if (parsed.logoUrl) logoUrl = parsed.logoUrl;
+            } catch (e) {}
+          } else if (cachedTenants) {
+            try {
+              const tenantsList = JSON.parse(cachedTenants);
+              const match = tenantsList.find((t: any) => t.id === profile.tenantId);
+              if (match && match.name) brandName = match.name;
+            } catch (e) {}
           }
 
           const mockTenant: Tenant = {

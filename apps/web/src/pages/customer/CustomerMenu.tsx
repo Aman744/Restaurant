@@ -187,10 +187,22 @@ export const CustomerMenu: React.FC = () => {
         setMenuItems([]);
       }
 
-      // Check tenant name in mock DB
+      // Check tenant name in mock DB or specific tenant info key
+      const cachedInfo = localStorage.getItem(`restaurant_qr_mock_tenant_info_${tenantId}`);
       const cachedTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
       let tenantFound = false;
-      if (cachedTenants) {
+
+      if (cachedInfo) {
+        try {
+          const parsed = JSON.parse(cachedInfo);
+          if (parsed.name && active) {
+            setRestaurantName(parsed.name);
+            tenantFound = true;
+          }
+        } catch (e) {}
+      }
+
+      if (!tenantFound && cachedTenants) {
         try {
           const tenantsList = JSON.parse(cachedTenants);
           const matchTenant = tenantsList.find((t: any) => t.id === tenantId);
@@ -200,6 +212,7 @@ export const CustomerMenu: React.FC = () => {
           }
         } catch (e) {}
       }
+
       if (!tenantFound && active) {
         setRestaurantName(`Restaurant (${tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`);
       }

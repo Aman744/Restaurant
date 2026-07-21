@@ -80,6 +80,16 @@ export class TenantService {
       },
       createdAt: new Date()
     };
+
+    // Persist new tenant in mock tenant storage so customer QR links render exact brand name
+    try {
+      const rawTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      const tenantsList: Tenant[] = rawTenants ? JSON.parse(rawTenants) : [];
+      tenantsList.push(newTenant);
+      localStorage.setItem('restaurant_qr_mock_tenants_db', JSON.stringify(tenantsList));
+      localStorage.setItem(`restaurant_qr_mock_tenant_info_${newTenantId}`, JSON.stringify({ name, logoUrl: undefined }));
+    } catch (e) {}
+
     return newTenant;
   }
 
