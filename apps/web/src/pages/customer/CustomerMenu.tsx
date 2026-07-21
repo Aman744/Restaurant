@@ -89,9 +89,42 @@ interface CartItem {
 }
 
 export const CustomerMenu: React.FC = () => {
-  const { tenantId = 'tenant_dev_123', tableId = 'table_01' } = useParams<{ tenantId: string; tableId: string }>();
+  const params = useParams<{ tenantId?: string; tableId?: string }>();
   const { isMockMode } = useAuth();
   const toast = useToast();
+
+  // Robust 3-layer URL tenantId & tableId extractor for mobile browsers & QR scanners
+  const resolveParams = () => {
+    let tId = params.tenantId;
+    let tblId = params.tableId;
+
+    const href = window.location.href;
+
+    // 1. Try Hash path parsing: /customer/table/TENANT_ID/TABLE_ID
+    if (!tId || tId === 'tenant_dev_123') {
+      const hashMatch = href.match(/\/customer\/table\/([^\/\?#]+)(?:\/([^\/\?#]+))?/);
+      if (hashMatch) {
+        if (hashMatch[1] && hashMatch[1] !== 'menu') tId = hashMatch[1];
+        if (hashMatch[2]) tblId = hashMatch[2];
+      }
+    }
+
+    // 2. Try Query string parsing: ?tenantId=...&tableId=...
+    if (!tId) {
+      const searchParams = new URLSearchParams(window.location.search || (href.includes('?') ? href.split('?')[1] : ''));
+      const qTenant = searchParams.get('tenantId') || searchParams.get('tenant');
+      const qTable = searchParams.get('tableId') || searchParams.get('table');
+      if (qTenant) tId = qTenant;
+      if (qTable) tblId = qTable;
+    }
+
+    return {
+      tenantId: tId || 'tenant_dev_123',
+      tableId: tblId || 'table_01'
+    };
+  };
+
+  const { tenantId, tableId } = resolveParams();
 
   // Database / state values
   const [restaurantName, setRestaurantName] = useState('Aman\'s Restaurant & Bar');

@@ -341,8 +341,8 @@ export const AppRouter: React.FC = () => {
       <Route path="/customer/" element={<Navigate to="/customer/menu" replace />} />
       <Route path="/customer/menu" element={<QRScanner />} />
       <Route path="/customer/menu/" element={<QRScanner />} />
-      <Route path="/customer/table" element={<Navigate to="/customer/table/tenant_dev_123/table_01" replace />} />
-      <Route path="/customer/table/" element={<Navigate to="/customer/table/tenant_dev_123/table_01" replace />} />
+      <Route path="/customer/table" element={<CustomerMenu />} />
+      <Route path="/customer/table/*" element={<CustomerMenu />} />
       <Route
         path="/customer/table/:tenantId/:tableId"
         element={<CustomerMenu />}
