@@ -36,10 +36,15 @@ export class TenantService {
     const newTenantId = `tenant_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
     
     if (adminEmail && adminPassword) {
-      const hashed = await hashPasswordLocal(adminPassword);
+      const lowerEmail = adminEmail.toLowerCase();
       const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
       const credentialsDb = rawDb ? JSON.parse(rawDb) : {};
 
+      if (credentialsDb[lowerEmail]) {
+        throw new Error(`The email address "${adminEmail}" is already registered. Please enter a unique email address for the new restaurant admin.`);
+      }
+
+      const hashed = await hashPasswordLocal(adminPassword);
       const mockClaims = {
         role: 'restaurant-admin',
         tenantId: newTenantId
@@ -53,7 +58,7 @@ export class TenantService {
         claims: mockClaims
       };
 
-      credentialsDb[adminEmail.toLowerCase()] = mockUser;
+      credentialsDb[lowerEmail] = mockUser;
       localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
     }
 
@@ -170,6 +175,9 @@ export class TenantService {
           });
         } catch (authErr: any) {
           console.error('Authentication user registration failed during tenant provisioning:', authErr);
+          if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
+            throw new Error(`The email address "${adminEmail}" is already associated with another account. Please enter a different email address for the new restaurant admin.`);
+          }
           throw new Error(`Tenant provisioned, but failed to create Admin User account: ${authErr.message}`);
         }
       }
