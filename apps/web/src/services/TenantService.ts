@@ -219,11 +219,21 @@ export class TenantService {
         } catch (e) {}
       }
 
-      // 3. Delete associated users in /users collection where tenantId === tenantId
+      // 3. Delete associated users in /users collection and queue Auth deletion
       try {
         const usersSnap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId)));
         const userBatch = writeBatch(db);
-        usersSnap.docs.forEach((u) => userBatch.delete(u.ref));
+        usersSnap.docs.forEach((u) => {
+          userBatch.delete(u.ref);
+          // Queue Firebase Authentication user deletion
+          const deletionRef = doc(db, 'auth_deletion_queue', u.id);
+          userBatch.set(deletionRef, {
+            uid: u.id,
+            email: u.data().email || '',
+            deletedAt: serverTimestamp(),
+            status: 'pending'
+          });
+        });
         await userBatch.commit();
       } catch (e) {}
     }
@@ -255,7 +265,25 @@ export class TenantService {
       }
       return;
     } else {
-      await deleteDoc(doc(db, 'users', uid));
+      const batch = writeBatch(db);
+      // Delete user profile document
+      batch.delete(doc(db, 'users', uid));
+      
+      // Queue Firebase Authentication user deletion
+      batch.set(doc(db, 'auth_deletion_queue', uid), {
+        uid,
+        deletedAt: serverTimestamp(),
+        status: 'pending'
+      });
+      await batch.commit();
+
+      // If current logged-in user is deleting themselves, delete client-side Auth session
+      try {
+        const authInstance = getAuth();
+        if (authInstance.currentUser && authInstance.currentUser.uid === uid) {
+          await authInstance.currentUser.delete();
+        }
+      } catch (e) {}
     }
   }
 

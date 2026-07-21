@@ -102,8 +102,19 @@ export class StaffService {
       return;
     }
 
+    // Delete Firestore profile documents
     await deleteDoc(doc(db, 'users', uid));
     await deleteDoc(doc(db, 'tenants', tenantId, 'staff', uid));
+
+    // Queue Firebase Authentication user deletion
+    try {
+      await setDoc(doc(db, 'auth_deletion_queue', uid), {
+        uid,
+        tenantId,
+        deletedAt: new Date(),
+        status: 'pending'
+      });
+    } catch (e) {}
   }
 }
 
