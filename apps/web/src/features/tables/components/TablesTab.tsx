@@ -56,7 +56,8 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
   };
 
   const handleCopyLink = (t: Table) => {
-    const url = `${window.location.origin}/customer/table/${tenantId}/${t.id}`;
+    const baseUrl = `${window.location.origin}${window.location.pathname}`.replace(/\/$/, '');
+    const url = `${baseUrl}/#/customer/table/${tenantId}/${t.id}`;
     navigator.clipboard.writeText(url);
     toast.success(`Copied order URL for ${t.number}!`);
   };

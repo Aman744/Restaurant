@@ -13,8 +13,9 @@ export const ViewQrModal: React.FC<ViewQrModalProps> = ({ tenantId }) => {
   const toast = useToast();
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
+  const baseUrl = `${window.location.origin}${window.location.pathname}`.replace(/\/$/, '');
   const targetUrl = viewingQrTable
-    ? `${window.location.origin}/customer/table/${tenantId}/${viewingQrTable.id}`
+    ? `${baseUrl}/#/customer/table/${tenantId}/${viewingQrTable.id}`
     : '';
 
   useEffect(() => {
