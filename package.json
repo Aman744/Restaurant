@@ -25,6 +25,7 @@
     "lightningcss-win32-x64-msvc": "1.32.0"
   },
   "dependencies": {
+    "gh-pages": "^6.3.0",
     "lucide-react": "^1.25.0"
   }
 }
