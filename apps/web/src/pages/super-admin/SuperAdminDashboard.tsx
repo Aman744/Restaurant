@@ -53,7 +53,6 @@ export const SuperAdminDashboard: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [isProvisioning, setIsProvisioning] = useState(false);
-  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newTenantName, setNewTenantName] = useState('');
   const [newTenantPlan, setNewTenantPlan] = useState<'starter' | 'growth' | 'enterprise'>('starter');
