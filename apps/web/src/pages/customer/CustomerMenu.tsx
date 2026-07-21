@@ -24,65 +24,6 @@ import {
 const MOCK_MENU_KEY = 'restaurant_qr_mock_menu_db';
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
 
-const DEFAULT_SAMPLE_MENU: MenuItem[] = [
-  {
-    id: 'item_01',
-    tenantId: 'tenant_dev_123',
-    categoryId: 'mains',
-    name: 'Truffle Mushroom Burger',
-    description: 'Artisanal brioche bun, black truffle aioli, aged cheddar & wild mushrooms',
-    price: 450,
-    images: ['https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80'],
-    dietaryTags: ['veg'],
-    allergens: ['gluten', 'dairy'],
-    stockStatus: 'in-stock',
-    preparationTime: 12,
-    isActive: true
-  },
-  {
-    id: 'item_02',
-    tenantId: 'tenant_dev_123',
-    categoryId: 'pizza',
-    name: 'Wood-Fired Margherita Pizza',
-    description: 'San Marzano tomato sauce, fresh mozzarella di bufala & sweet basil',
-    price: 520,
-    images: ['https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80'],
-    dietaryTags: ['veg'],
-    allergens: ['gluten', 'dairy'],
-    stockStatus: 'in-stock',
-    preparationTime: 15,
-    isActive: true
-  },
-  {
-    id: 'item_03',
-    tenantId: 'tenant_dev_123',
-    categoryId: 'mains',
-    name: 'Paneer Butter Masala & Naan',
-    description: 'Cottage cheese cubes simmered in rich velvety tomato cashew gravy',
-    price: 380,
-    images: ['https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=600&q=80'],
-    dietaryTags: ['veg'],
-    allergens: ['dairy', 'nuts'],
-    stockStatus: 'in-stock',
-    preparationTime: 10,
-    isActive: true
-  },
-  {
-    id: 'item_04',
-    tenantId: 'tenant_dev_123',
-    categoryId: 'drinks',
-    name: 'Fresh Mint Lime Soda',
-    description: 'Sparkling mineral soda with freshly squeezed lime and crushed mint leaves',
-    price: 120,
-    images: ['https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=600&q=80'],
-    dietaryTags: ['vegan'],
-    allergens: [],
-    stockStatus: 'in-stock',
-    preparationTime: 5,
-    isActive: true
-  }
-];
-
 interface CartItem {
   menuItem: MenuItem;
   quantity: number;
