@@ -140,13 +140,55 @@ export const CustomerMenu: React.FC = () => {
       const cached = localStorage.getItem(MOCK_MENU_KEY);
       if (cached && active) {
         try {
-          const parsed = JSON.parse(cached);
-          setMenuItems(parsed.length > 0 ? parsed : DEFAULT_SAMPLE_MENU);
+          const parsed: MenuItem[] = JSON.parse(cached);
+          // Strictly filter menu items created specifically for THIS tenantId!
+          const tenantMenuItems = parsed.filter(
+            (m) => m.tenantId === tenantId && m.isActive !== false
+          );
+
+          if (tenantMenuItems.length > 0) {
+            setMenuItems(tenantMenuItems);
+          } else {
+            // Generate isolated sample menu items bound specifically to THIS tenantId
+            const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
+              ...item,
+              id: `${tenantId}_${item.id}`,
+              tenantId
+            }));
+            setMenuItems(isolatedSampleMenu);
+          }
         } catch (e) {
-          setMenuItems(DEFAULT_SAMPLE_MENU);
+          const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
+            ...item,
+            id: `${tenantId}_${item.id}`,
+            tenantId
+          }));
+          setMenuItems(isolatedSampleMenu);
         }
       } else if (active) {
-        setMenuItems(DEFAULT_SAMPLE_MENU);
+        const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
+          ...item,
+          id: `${tenantId}_${item.id}`,
+          tenantId
+        }));
+        setMenuItems(isolatedSampleMenu);
+      }
+
+      // Check tenant name in mock DB
+      const cachedTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      let tenantFound = false;
+      if (cachedTenants) {
+        try {
+          const tenantsList = JSON.parse(cachedTenants);
+          const matchTenant = tenantsList.find((t: any) => t.id === tenantId);
+          if (matchTenant && matchTenant.name && active) {
+            setRestaurantName(matchTenant.name);
+            tenantFound = true;
+          }
+        } catch (e) {}
+      }
+      if (!tenantFound && active) {
+        setRestaurantName(`Restaurant (${tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`);
       }
 
       const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
@@ -160,13 +202,12 @@ export const CustomerMenu: React.FC = () => {
         } catch (e) {}
       }
 
-      setRestaurantName('Aman\'s Restaurant & Bar');
       setLoading(false);
     } else {
       getDoc(doc(db, 'tenants', tenantId))
         .then((snap: any) => {
           if (snap.exists() && active) {
-            setRestaurantName(snap.data().name || 'Aman\'s Restaurant & Bar');
+            setRestaurantName(snap.data().name || `Restaurant (${tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`);
           }
         })
         .catch(() => {});
@@ -177,14 +218,29 @@ export const CustomerMenu: React.FC = () => {
         (snap: any) => {
           if (active) {
             const items = snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive);
-            setMenuItems(items.length > 0 ? items : DEFAULT_SAMPLE_MENU);
+            if (items.length > 0) {
+              setMenuItems(items);
+            } else {
+              // Isolated default fallback bound specifically to THIS tenantId
+              const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
+                ...item,
+                id: `${tenantId}_${item.id}`,
+                tenantId
+              }));
+              setMenuItems(isolatedSampleMenu);
+            }
             setLoading(false);
           }
         },
         (err) => {
           console.warn('Firestore snapshot permission fallback:', err);
           if (active) {
-            setMenuItems(DEFAULT_SAMPLE_MENU);
+            const isolatedSampleMenu = DEFAULT_SAMPLE_MENU.map((item) => ({
+              ...item,
+              id: `${tenantId}_${item.id}`,
+              tenantId
+            }));
+            setMenuItems(isolatedSampleMenu);
             setLoading(false);
           }
         }
