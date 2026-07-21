@@ -113,12 +113,11 @@ export const CustomerMenu: React.FC = () => {
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [trackedOrder, setTrackedOrder] = useState<Order | null>(null);
 
-  const formatTableName = (tId: string) => {
-    const match = tId.match(/\d+$/);
-    if (match) {
-      return `Table ${parseInt(match[0], 10)}`;
-    }
-    return `Table ${tId.replace(/^table_|^tb_/, '').toUpperCase()}`;
+  const formatTableName = (tId?: string) => {
+    if (!tId) return 'Table 1';
+    if (/^\d+$/.test(tId)) return `Table ${tId}`;
+    const clean = tId.replace(/^table_|^tb_|^tbl_/, '').slice(0, 6).toUpperCase();
+    return `Table ${clean}`;
   };
 
   const [tableName, setTableName] = useState(() => formatTableName(tableId));
@@ -348,20 +347,21 @@ export const CustomerMenu: React.FC = () => {
   const cartTotal = cartSubtotal + tax + serviceCharge;
   const totalCartCount = cart.reduce((sum, c) => sum + c.quantity, 0);
 
-  // Filter menu items
-  const filteredMenuItems = menuItems.filter((item) => {
-    if (vegOnly && !item.dietaryTags.includes('veg') && !item.dietaryTags.includes('vegan')) {
+  // Filter menu items with full safe optional chaining
+  const filteredMenuItems = (menuItems || []).filter((item) => {
+    if (!item) return false;
+    const dietary = Array.isArray(item.dietaryTags) ? item.dietaryTags : [];
+    if (vegOnly && !dietary.includes('veg') && !dietary.includes('vegan')) {
       return false;
     }
-    if (selectedCategory !== 'all' && item.categoryId !== selectedCategory) {
+    if (selectedCategory !== 'all' && (item.categoryId || 'mains') !== selectedCategory) {
       return false;
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q)
-      );
+      const nameMatch = (item.name || '').toLowerCase().includes(q);
+      const descMatch = (item.description || '').toLowerCase().includes(q);
+      return nameMatch || descMatch;
     }
     return true;
   });
