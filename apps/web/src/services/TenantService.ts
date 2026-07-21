@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
-import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, firebaseConfig } from '../lib/firebase.js';
 import { TenantConverter } from '@restaurant-qr/infra';
 import type { Tenant } from '@restaurant-qr/core';
@@ -186,13 +186,71 @@ export class TenantService {
     }
   }
 
-  // Delete a tenant permanently
+  // Delete a tenant permanently along with subcollections & associated users in Firebase & Mock DB
   async deleteTenant(tenantId: string): Promise<void> {
     if (this.isMockMode) {
+      const rawTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      if (rawTenants) {
+        try {
+          const list = JSON.parse(rawTenants);
+          const updated = list.filter((t: any) => t.id !== tenantId);
+          localStorage.setItem('restaurant_qr_mock_tenants_db', JSON.stringify(updated));
+        } catch (e) {}
+      }
+      localStorage.removeItem(`restaurant_qr_mock_tenant_info_${tenantId}`);
       return;
     } else {
-      // Direct Firestore delete
+      // 1. Delete main tenant document in Firebase
       await deleteDoc(doc(db, 'tenants', tenantId));
+
+      // 2. Cascade delete subcollections (menu_items, tables, orders, staff, settings)
+      const subCols = ['menu_items', 'tables', 'orders', 'staff', 'settings'];
+      for (const colName of subCols) {
+        try {
+          const subSnap = await getDocs(collection(db, 'tenants', tenantId, colName));
+          const batch = writeBatch(db);
+          subSnap.docs.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+        } catch (e) {}
+      }
+
+      // 3. Delete associated users in /users collection where tenantId === tenantId
+      try {
+        const usersSnap = await getDocs(query(collection(db, 'users'), where('tenantId', '==', tenantId)));
+        const userBatch = writeBatch(db);
+        usersSnap.docs.forEach((u) => userBatch.delete(u.ref));
+        await userBatch.commit();
+      } catch (e) {}
+    }
+  }
+
+  // Delete a user account permanently from Firebase or Mock DB
+  async deleteUser(uid: string): Promise<void> {
+    if (this.isMockMode) {
+      const rawStaff = localStorage.getItem('restaurant_qr_mock_staff_db');
+      if (rawStaff) {
+        try {
+          const list = JSON.parse(rawStaff);
+          const updated = list.filter((u: any) => u.uid !== uid && u.id !== uid);
+          localStorage.setItem('restaurant_qr_mock_staff_db', JSON.stringify(updated));
+        } catch (e) {}
+      }
+
+      const rawCreds = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
+      if (rawCreds) {
+        try {
+          const credsDb = JSON.parse(rawCreds);
+          Object.keys(credsDb).forEach((emailKey) => {
+            if (credsDb[emailKey]?.uid === uid) {
+              delete credsDb[emailKey];
+            }
+          });
+          localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credsDb));
+        } catch (e) {}
+      }
+      return;
+    } else {
+      await deleteDoc(doc(db, 'users', uid));
     }
   }
 
