@@ -53,6 +53,8 @@ export const SuperAdminDashboard: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [isProvisioning, setIsProvisioning] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newTenantName, setNewTenantName] = useState('');
   const [newTenantPlan, setNewTenantPlan] = useState<'starter' | 'growth' | 'enterprise'>('starter');
   const [newTenantDomain, setNewTenantDomain] = useState('');
@@ -224,8 +226,9 @@ export const SuperAdminDashboard: React.FC = () => {
   };
 
   const confirmDeleteTenant = async () => {
-    if (!tenantToDelete) return;
+    if (!tenantToDelete || isDeleting) return;
     const { id, name } = tenantToDelete;
+    setIsDeleting(true);
     try {
       await tenantService.deleteTenant(id);
 
@@ -240,6 +243,7 @@ export const SuperAdminDashboard: React.FC = () => {
     } catch (err: any) {
       toast.error(`Failed to delete tenant: ${err.message}`);
     } finally {
+      setIsDeleting(false);
       setShowDeleteConfirmModal(false);
       setTenantToDelete(null);
     }
@@ -1049,33 +1053,49 @@ export const SuperAdminDashboard: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmModal && tenantToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 ${isDeleting ? 'pointer-events-none' : ''}`}>
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="w-full max-w-sm border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-2xl text-white"
+            className="w-full max-w-sm border border-zinc-850 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white relative overflow-hidden"
           >
-            <h3 className="text-lg font-bold text-white mb-2">Delete Tenant?</h3>
+            {isDeleting && (
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center gap-3 animate-fadeIn">
+                <Loader2 className="h-8 w-8 animate-spin text-red-500" />
+                <p className="text-[10px] font-bold text-zinc-300 uppercase tracking-widest animate-pulse">Deleting Tenant Data...</p>
+              </div>
+            )}
+
+            <h3 className="text-base font-extrabold text-white mb-2">Delete Tenant?</h3>
             <p className="text-xs text-zinc-400 leading-relaxed mb-6">
-              Are you sure you want to delete <span className="font-bold text-white">"{tenantToDelete.name}"</span>? All data namespaces, orders, menus, and staff details will be permanently deleted. This action cannot be undone.
+              Are you sure you want to delete <span className="font-bold text-white">"{tenantToDelete.name}"</span>? All database tables, catalog menus, staff registries, and settings will be permanently removed.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => {
                   setShowDeleteConfirmModal(false);
                   setTenantToDelete(null);
                 }}
-                className="px-4 py-2.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl"
+                className="px-4 py-2 border border-zinc-850 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={confirmDeleteTenant}
-                className="px-4 py-2.5 bg-red-650 hover:bg-red-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-500/10"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl shadow-lg shadow-red-650/15 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                Permanently Delete
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Permanently Delete</span>
+                )}
               </button>
             </div>
           </motion.div>
