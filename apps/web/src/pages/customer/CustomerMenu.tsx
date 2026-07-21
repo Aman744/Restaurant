@@ -129,11 +129,23 @@ export const CustomerMenu: React.FC = () => {
 
     setTableName(formatTableName(tableId));
 
+    // Fallback timer: Guarantee loading is cleared after 1.5 seconds under all conditions
+    const fallbackTimer = setTimeout(() => {
+      if (active) {
+        setMenuItems((prev) => (prev.length > 0 ? prev : DEFAULT_SAMPLE_MENU));
+        setLoading(false);
+      }
+    }, 1500);
+
     if (isMockMode) {
       const cached = localStorage.getItem(MOCK_MENU_KEY);
       if (cached && active) {
-        const parsed = JSON.parse(cached);
-        setMenuItems(parsed.length > 0 ? parsed : DEFAULT_SAMPLE_MENU);
+        try {
+          const parsed = JSON.parse(cached);
+          setMenuItems(parsed.length > 0 ? parsed : DEFAULT_SAMPLE_MENU);
+        } catch (e) {
+          setMenuItems(DEFAULT_SAMPLE_MENU);
+        }
       } else if (active) {
         setMenuItems(DEFAULT_SAMPLE_MENU);
       }
@@ -152,35 +164,55 @@ export const CustomerMenu: React.FC = () => {
       setRestaurantName('Aman\'s Restaurant & Bar');
       setLoading(false);
     } else {
-      getDoc(doc(db, 'tenants', tenantId)).then((snap: any) => {
-        if (snap.exists() && active) {
-          setRestaurantName(snap.data().name || 'Aman\'s Restaurant & Bar');
-        }
-      });
+      getDoc(doc(db, 'tenants', tenantId))
+        .then((snap: any) => {
+          if (snap.exists() && active) {
+            setRestaurantName(snap.data().name || 'Aman\'s Restaurant & Bar');
+          }
+        })
+        .catch(() => {});
 
       const menuCol = collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter);
-      const unsub = onSnapshot(menuCol, (snap: any) => {
-        if (active) {
-          const items = snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive);
-          setMenuItems(items.length > 0 ? items : DEFAULT_SAMPLE_MENU);
-          setLoading(false);
-        }
-      });
-
-      getDoc(doc(db, 'tenants', tenantId, 'tables', tableId)).then((snap: any) => {
-        if (active && snap.exists()) {
-          const tData = snap.data();
-          if (tData?.number) {
-            setTableName(tData.number);
+      const unsub = onSnapshot(
+        menuCol,
+        (snap: any) => {
+          if (active) {
+            const items = snap.docs.map((d: any) => d.data() as MenuItem).filter((i: MenuItem) => i.isActive);
+            setMenuItems(items.length > 0 ? items : DEFAULT_SAMPLE_MENU);
+            setLoading(false);
+          }
+        },
+        (err) => {
+          console.warn('Firestore snapshot permission fallback:', err);
+          if (active) {
+            setMenuItems(DEFAULT_SAMPLE_MENU);
+            setLoading(false);
           }
         }
-      }).catch(() => {});
+      );
+
+      getDoc(doc(db, 'tenants', tenantId, 'tables', tableId))
+        .then((snap: any) => {
+          if (active && snap.exists()) {
+            const tData = snap.data();
+            if (tData?.number) {
+              setTableName(tData.number);
+            }
+          }
+        })
+        .catch(() => {});
 
       return () => {
         active = false;
+        clearTimeout(fallbackTimer);
         unsub();
       };
     }
+
+    return () => {
+      active = false;
+      clearTimeout(fallbackTimer);
+    };
   }, [isMockMode, tenantId, tableId]);
 
   // Track placed order status in real time
