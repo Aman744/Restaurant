@@ -56,9 +56,16 @@ export class TableService {
   /**
    * Clears all mock tables to reset demo storage
    */
-  static async clearAllTables(_tenantId: string, isMockMode: boolean): Promise<void> {
+  static async clearAllTables(tenantId: string, isMockMode: boolean): Promise<void> {
     if (isMockMode) {
-      localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify([]));
+      const stored = localStorage.getItem(MOCK_TABLES_KEY);
+      if (stored) {
+        try {
+          const parsed: Table[] = JSON.parse(stored);
+          const updated = parsed.filter((t) => t.tenantId !== tenantId);
+          localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify(updated));
+        } catch (e) {}
+      }
     }
   }
 }

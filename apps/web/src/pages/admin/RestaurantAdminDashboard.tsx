@@ -63,10 +63,30 @@ export const RestaurantAdminDashboard: React.FC = () => {
         const storedStaff = localStorage.getItem('restaurant_qr_mock_staff_db');
 
         if (active) {
-          if (storedMenu) setMenuItems(JSON.parse(storedMenu));
-          if (storedTables) setTables(JSON.parse(storedTables));
-          if (storedOrders) setOrders(JSON.parse(storedOrders));
-          if (storedStaff) setStaff(JSON.parse(storedStaff));
+          if (storedMenu) {
+            try {
+              const all: MenuItem[] = JSON.parse(storedMenu);
+              setMenuItems(all.filter((m) => m.tenantId === tenantId));
+            } catch (e) {}
+          }
+          if (storedTables) {
+            try {
+              const all: RestaurantTable[] = JSON.parse(storedTables);
+              setTables(all.filter((t) => t.tenantId === tenantId));
+            } catch (e) {}
+          }
+          if (storedOrders) {
+            try {
+              const all: Order[] = JSON.parse(storedOrders);
+              setOrders(all.filter((o) => o.tenantId === tenantId));
+            } catch (e) {}
+          }
+          if (storedStaff) {
+            try {
+              const all: UserProfile[] = JSON.parse(storedStaff);
+              setStaff(all.filter((s) => (s as any).tenantId === tenantId));
+            } catch (e) {}
+          }
           setLoading(false);
         }
       };
