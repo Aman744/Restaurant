@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
 import { doc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, firebaseConfig } from '../lib/firebase.js';
 import { TenantConverter } from '@restaurant-qr/infra';
@@ -40,19 +40,18 @@ export class TenantService {
       const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
       const credentialsDb = rawDb ? JSON.parse(rawDb) : {};
 
-      if (credentialsDb[lowerEmail]) {
-        throw new Error(`The email address "${adminEmail}" is already registered. Please enter a unique email address for the new restaurant admin.`);
-      }
-
+      const existingUser = credentialsDb[lowerEmail];
+      const mockUid = existingUser?.uid || `mock_uid_${Math.floor(Math.random() * 100000)}`;
       const hashed = await hashPasswordLocal(adminPassword);
+
       const mockClaims = {
         role: 'restaurant-admin',
         tenantId: newTenantId
       };
 
       const mockUser = {
-        uid: `mock_uid_${Math.floor(Math.random() * 100000)}`,
-        email: adminEmail,
+        uid: mockUid,
+        email: adminEmail.toLowerCase(),
         displayName: adminName || adminEmail.split('@')[0].toUpperCase(),
         passwordHash: hashed,
         claims: mockClaims
@@ -152,38 +151,60 @@ export class TenantService {
         createdAt: serverTimestamp()
       });
 
-      // 4. Create initial Admin credentials in Firebase Auth
+      // 4. Create or link Admin credentials in Firebase Auth
       if (adminEmail && adminPassword) {
         const appName = `SecondaryApp_${Date.now()}`;
         const secondaryApp = initializeApp(firebaseConfig, appName);
         const secondaryAuth = getAuth(secondaryApp);
         
+        let adminUid: string | null = null;
+
         try {
           const credential = await createUserWithEmailAndPassword(secondaryAuth, adminEmail, adminPassword);
-          const adminUid = credential.user.uid;
+          adminUid = credential.user.uid;
           await authSignOut(secondaryAuth);
+        } catch (authErr: any) {
+          console.warn('Firebase Auth user registration notice during provisioning:', authErr);
 
+          if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
+            // Attempt to resolve existing user's UID from /users collection or sign in with secondaryAuth
+            try {
+              const userSnap = await getDocs(query(collection(db, 'users'), where('email', '==', adminEmail.toLowerCase())));
+              if (!userSnap.empty) {
+                adminUid = userSnap.docs[0].id;
+              }
+            } catch (e) {}
+
+            if (!adminUid) {
+              try {
+                const signInCred = await signInWithEmailAndPassword(secondaryAuth, adminEmail, adminPassword);
+                adminUid = signInCred.user.uid;
+                await authSignOut(secondaryAuth);
+              } catch (signInErr: any) {
+                console.warn('Sign-in fallback notice:', signInErr);
+              }
+            }
+          }
+        }
+
+        if (adminUid) {
           const adminUserProfile = {
             uid: adminUid,
             email: adminEmail.toLowerCase(),
             displayName: adminName || adminEmail.split('@')[0].toUpperCase(),
-            role: 'restaurant-admin',
+            role: 'restaurant-admin' as any,
             tenantId,
             permissions: ['dashboard', 'menu', 'tables', 'staff', 'reports', 'inventory', 'reservations', 'settings'],
             createdAt: serverTimestamp()
           };
 
-          // 5. Direct Firestore write: Global user registry document
-          await setDoc(doc(db, 'users', adminUid), adminUserProfile);
+          // Write/update user in global /users collection
+          await setDoc(doc(db, 'users', adminUid), adminUserProfile, { merge: true });
 
-          // 6. Direct Firestore write: Tenant staff subcollection document
-          await setDoc(doc(db, 'tenants', tenantId, 'staff', adminUid), adminUserProfile);
-        } catch (authErr: any) {
-          console.error('Authentication user registration failed during tenant provisioning:', authErr);
-          if (authErr.code === 'auth/email-already-in-use' || authErr.message?.includes('email-already-in-use')) {
-            throw new Error(`The email address "${adminEmail}" is already associated with another account. Please enter a different email address for the new restaurant admin.`);
-          }
-          throw new Error(`Tenant provisioned, but failed to create Admin User account: ${authErr.message}`);
+          // Write/update user in tenant staff subcollection
+          await setDoc(doc(db, 'tenants', tenantId, 'staff', adminUid), adminUserProfile, { merge: true });
+        } else {
+          throw new Error(`The email address "${adminEmail}" is already registered in Firebase Auth with a different password. Please enter the correct password for "${adminEmail}" or use a new email address.`);
         }
       }
 
