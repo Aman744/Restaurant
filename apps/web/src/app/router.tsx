@@ -15,7 +15,7 @@ import { InvoicesHistoryPage } from '../pages/cashier/InvoicesHistoryPage';
 import { CustomerMenu } from '../pages/customer/CustomerMenu';
 import { QRScanner } from '../pages/customer/QRScanner';
 import { useUserProfile } from '../features/auth/context/UserContext.js';
-import { Store, ShieldCheck, ChefHat, Utensils, CreditCard, UserCheck, Smartphone } from 'lucide-react';
+import { Store, ShieldCheck, ChefHat, Utensils, CreditCard, UserCheck } from 'lucide-react';
 
 const RootIndex: React.FC = () => {
   const { profile } = useUserProfile();
@@ -43,20 +43,6 @@ const RootIndex: React.FC = () => {
 
         {/* Portals grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 text-left">
-          {/* Customer Portal */}
-          <Link
-            to="/customer/menu"
-            className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl hover:border-emerald-500/30 hover:bg-emerald-500/5 transition duration-300 flex items-start gap-4"
-          >
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/15 rounded-xl text-emerald-400">
-              <Smartphone className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-white text-sm">Customer QR Ordering</h3>
-              <p className="text-xs text-zinc-500 mt-1">Simulate table scanning and placing orders.</p>
-            </div>
-          </Link>
-
           {/* Super Admin */}
           <Link
             to="/super-admin/login"
@@ -71,7 +57,7 @@ const RootIndex: React.FC = () => {
             </div>
           </Link>
 
-          {/* Restaurant Admin */}
+          {/* Hotel & Restaurant Admin */}
           <Link
             to="/admin/login"
             className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl hover:border-emerald-500/30 hover:bg-emerald-500/5 transition duration-300 flex items-start gap-4"
@@ -80,7 +66,7 @@ const RootIndex: React.FC = () => {
               <Store className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white text-sm">Restaurant Admin</h3>
+              <h3 className="font-bold text-white text-sm">Hotel & Restaurant Admin</h3>
               <p className="text-xs text-zinc-500 mt-1">Operations dashboard, menu controls.</p>
             </div>
           </Link>
@@ -130,7 +116,7 @@ const RootIndex: React.FC = () => {
           {/* Cashier Billing */}
           <Link
             to="/cashier/login"
-            className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl hover:border-teal-500/30 hover:bg-teal-500/5 transition duration-300 flex items-start gap-4 sm:col-span-2"
+            className="border border-zinc-800 bg-zinc-900/40 p-5 rounded-2xl hover:border-teal-500/30 hover:bg-teal-500/5 transition duration-300 flex items-start gap-4"
           >
             <div className="p-3 bg-teal-500/10 border border-teal-500/15 rounded-xl text-teal-400">
               <CreditCard className="h-5 w-5" />
