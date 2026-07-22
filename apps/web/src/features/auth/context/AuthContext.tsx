@@ -70,7 +70,7 @@ export function getRoleFromEmail(email: string): string | null {
   if (emailLower.startsWith('manager') || emailLower.startsWith('money')) return 'manager';
   if (emailLower.startsWith('kitchen') || emailLower.startsWith('kds') || emailLower.startsWith('chef') || emailLower.startsWith('cook')) return 'kitchen-staff';
   if (emailLower.startsWith('waiter') || emailLower.startsWith('server') || emailLower.startsWith('staff')) return 'waiter';
-  if (emailLower.startsWith('cashier') || emailLower.startsWith('pos') || emailLower.startsWith('billing') || emailLower.startsWith('counter') || emailLower.startsWith('cash')) return 'cashier';
+  if (emailLower.startsWith('cashier') || emailLower.startsWith('pos') || emailLower.startsWith('billing') || emailLower.startsWith('counter') || emailLower.startsWith('cash') || emailLower.startsWith('bill')) return 'cashier';
   return null;
 }
 
