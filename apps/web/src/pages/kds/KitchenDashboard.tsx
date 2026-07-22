@@ -5,7 +5,7 @@ import type { OrderItem, Order, MenuItem, OrderStatus } from '@restaurant-qr/cor
 import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { db } from '../../lib/firebase.js';
 import { doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
-import { OrderRepository } from '@restaurant-qr/infra';
+import { OrderRepository, MenuItemConverter } from '@restaurant-qr/infra';
 import { useLocation } from 'react-router-dom';
 import { EventService } from '../../services/EventService.js';
 
@@ -175,10 +175,10 @@ export const KitchenDashboard: React.FC = () => {
         active = false;
       };
     } else {
-      const colRef = collection(db, 'tenants', selectedTenantId, 'menu_items');
+      const colRef = collection(db, 'tenants', selectedTenantId, 'menu_items').withConverter(MenuItemConverter);
       const unsubscribe = onSnapshot(colRef, (snap: any) => {
         if (active) {
-          setMenuItems(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as MenuItem)));
+          setMenuItems(snap.docs.map((d: any) => d.data()));
         }
       }, (err: any) => {
         console.error('KDS menu listener error:', err);
@@ -471,7 +471,7 @@ export const KitchenDashboard: React.FC = () => {
 
   const filteredMenuItems = menuItems.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.categoryId.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.categoryId || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All Categories' || item.categoryId === selectedCategory;
     const matchesStock = selectedStockFilter === 'All Statuses' ||
       (selectedStockFilter === 'In Stock' && item.stockStatus === 'in-stock') ||
