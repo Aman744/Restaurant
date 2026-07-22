@@ -408,6 +408,29 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
+  const handleToggleFeatureOverride = async (id: string, featureKey: string, enabled: boolean) => {
+    try {
+      if (isMockMode) {
+        const updated = tenants.map((t) => {
+          if (t.id === id) {
+            const features = t.features || {};
+            return { ...t, features: { ...features, [featureKey]: enabled } };
+          }
+          return t;
+        });
+        setTenants(updated);
+        localStorage.setItem(MOCK_TENANTS_KEY, JSON.stringify(updated));
+      } else {
+        await updateDoc(doc(db, 'tenants', id), {
+          [`features.${featureKey}`]: enabled
+        });
+      }
+      toast.success(`Feature override for "${featureKey}" updated successfully.`);
+    } catch (err: any) {
+      toast.error(`Failed to update feature override: ${err.message}`);
+    }
+  };
+
   const handleEditDomain = async (id: string) => {
     const tenant = tenants.find((t) => t.id === id);
     if (!tenant) return;
@@ -521,6 +544,17 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
+  const formatCreatedAt = (date: any): string => {
+    if (!date) return '';
+    try {
+      const d = date instanceof Date ? date : new Date(date);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString();
+    } catch (e) {
+      return '';
+    }
+  };
+
   // Determine current tab based on router pathname
   const path = location.pathname;
   let activeTab = 'overview';
@@ -530,7 +564,7 @@ export const SuperAdminDashboard: React.FC = () => {
   else if (path.endsWith('/settings')) activeTab = 'settings';
 
   return (
-    <DashboardLayout title="SaaS Super Admin" sidebarItems={sidebarItems}>
+    <DashboardLayout title="Super Admin Dashboard" sidebarItems={sidebarItems}>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
@@ -667,6 +701,7 @@ export const SuperAdminDashboard: React.FC = () => {
                   <tr className="border-b border-zinc-900 text-zinc-500 text-xs font-bold uppercase tracking-wider">
                     <th className="px-6 py-4">Tenant Name</th>
                     <th className="px-6 py-4">Subscription Plan</th>
+                    <th className="px-6 py-4">Feature Overrides</th>
                     <th className="px-6 py-4">Limits (Tables)</th>
                     <th className="px-6 py-4">Domain Mapping</th>
                     <th className="px-6 py-4">Status</th>
@@ -677,7 +712,7 @@ export const SuperAdminDashboard: React.FC = () => {
                 <tbody className="divide-y divide-zinc-900/60 text-sm">
                   {tenants.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-zinc-500 text-xs">
+                      <td colSpan={8} className="px-6 py-10 text-center text-zinc-500 text-xs">
                         No tenants provisioned yet. Click "Provision Tenant" to add your first restaurant chain.
                       </td>
                     </tr>
@@ -695,6 +730,17 @@ export const SuperAdminDashboard: React.FC = () => {
                             <option value="growth">Growth</option>
                             <option value="enterprise">Enterprise</option>
                           </select>
+                        </td>
+                        <td className="px-6 py-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer text-xs select-none">
+                            <input
+                              type="checkbox"
+                              checked={!!t.features?.rooms}
+                              onChange={(e) => handleToggleFeatureOverride(t.id, 'rooms', e.target.checked)}
+                              className="accent-emerald-500 rounded h-3.5 w-3.5 bg-zinc-950 border-zinc-800 focus:ring-0 cursor-pointer"
+                            />
+                            <span className="text-zinc-400">Rooms</span>
+                          </label>
                         </td>
                         <td className="px-6 py-4 text-zinc-400">
                           {t.subscription.limits.tablesPerRestaurant} Tables
@@ -737,23 +783,25 @@ export const SuperAdminDashboard: React.FC = () => {
                           </button>
                         </td>
                         <td className="px-6 py-4 text-zinc-500 text-xs">
-                          {t.createdAt.toLocaleDateString()}
+                          {formatCreatedAt(t.createdAt)}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => handleImpersonate(t.id, t.name)}
-                            className="p-2 border border-zinc-800 hover:border-emerald-500/30 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition rounded-xl mr-2"
-                            title="Impersonate Restaurant Admin"
-                          >
-                            <Sliders className="h-3.5 w-3.5" />
-                          </button>
-                           <button
-                            onClick={() => requestDeleteTenant(t.id, t.name)}
-                            className="p-2 border border-zinc-800 hover:border-red-500/30 text-zinc-500 hover:text-red-400 hover:bg-red-500/5 transition rounded-xl"
-                            title="Delete Tenant"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleImpersonate(t.id, t.name)}
+                              className="p-2 border border-zinc-800 hover:border-emerald-500/30 text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/5 transition rounded-xl"
+                              title="Impersonate Restaurant Admin"
+                            >
+                              <Sliders className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => requestDeleteTenant(t.id, t.name)}
+                              className="p-2 border border-zinc-800 hover:border-red-500/30 text-zinc-500 hover:text-red-400 hover:bg-red-500/5 transition rounded-xl"
+                              title="Delete Tenant"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -857,7 +905,7 @@ export const SuperAdminDashboard: React.FC = () => {
                             {matchTenant ? matchTenant.name : u.role === 'super-admin' ? 'Global Platform' : 'Independent User'}
                           </td>
                           <td className="px-6 py-4 text-zinc-500 text-xs">
-                            {new Date(u.createdAt).toLocaleDateString()}
+                            {formatCreatedAt(u.createdAt)}
                           </td>
                           <td className="px-6 py-4 text-right">
                             <button

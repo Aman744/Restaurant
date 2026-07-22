@@ -23,6 +23,7 @@ export const TenantConverter: any = {
         stripeSubscriptionId: tenant.subscription?.stripeSubscriptionId || null,
         limits: tenant.subscription?.limits || { tablesPerRestaurant: 10, monthlyOrders: 1000 }
       },
+      features: tenant.features || null,
       createdAt: tenant.createdAt || new Date()
     };
   },
@@ -58,6 +59,7 @@ export const TenantConverter: any = {
         stripeSubscriptionId: sub.stripeSubscriptionId || undefined,
         limits: sub.limits || { tablesPerRestaurant: 10, monthlyOrders: 1000 }
       },
+      features: data.features || {},
       createdAt: toDate(data.createdAt)
     };
   }

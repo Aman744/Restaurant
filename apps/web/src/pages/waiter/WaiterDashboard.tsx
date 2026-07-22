@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { Utensils, HelpCircle, AlertCircle, CheckCircle, Send, CreditCard, RotateCcw, Check, Clock } from 'lucide-react';
+import { Utensils, HelpCircle, AlertCircle, CheckCircle, Send, CreditCard, RotateCcw, Check, Clock, Hotel } from 'lucide-react';
 import type { Table, Order, OrderStatus } from '@restaurant-qr/core';
 import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
@@ -15,7 +16,10 @@ interface WaiterAlert {
   tableNumber: string;
   type: 'call_waiter' | 'bill_request' | 'service_request';
   time: string;
-  status: 'pending' | 'resolved';
+  status: 'pending' | 'accepted' | 'resolved';
+  stayId?: string | null;
+  guestName?: string | null;
+  isRoom?: boolean;
 }
 
 const MOCK_TABLES_KEY = 'restaurant_qr_mock_tables_db';
@@ -34,15 +38,16 @@ const defaultMockAlerts: WaiterAlert[] = [
   { id: 'a2', tableNumber: 'Table 4', type: 'bill_request', time: 'Just now', status: 'pending' },
 ];
 
+import { useTenant } from '../../features/auth/context/TenantContext.js';
+
 export const WaiterDashboard: React.FC = () => {
   const { profile } = useUserProfile();
+  const { tenant } = useTenant();
   const { isMockMode } = useAuth();
   const toast = useToast();
-  const tenantId = profile?.tenantId || 'sandbox';
-
-  const sidebarItems = [
-    { name: 'Service Board', path: '/waiter', icon: Utensils },
-  ];
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tenantId = tenant?.id || profile?.tenantId || 'sandbox';
 
   const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState(tenantId);
@@ -87,53 +92,152 @@ export const WaiterDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeSectionTab, setActiveSectionTab] = useState<string>('All Sections');
 
-  // 1. Subscribe to Live Tables
+  const resolvedTables = tables.map((t) => {
+    const hasActiveOrder = orders.some(
+      (o) => (o.tableId === t.id || o.tableNumber === t.number) && 
+             o.status !== 'completed' && 
+             o.status !== 'archived' &&
+             o.payment?.status !== 'paid'
+    );
+
+    if (hasActiveOrder && t.status !== 'occupied') {
+      return { ...t, status: 'occupied' as const };
+    }
+    if (!hasActiveOrder && t.status === 'occupied') {
+      return { ...t, status: 'cleaning' as const };
+    }
+    return t;
+  });
+
+  const diningTablesOnly = resolvedTables.filter((t) => {
+    const isRoomSpace = t.id.startsWith('room_') || Boolean((t as any).roomNumber) || Boolean((t as any).roomName);
+    return !isRoomSpace;
+  });
+
+  const roomsOnly = resolvedTables.filter((t) => {
+    const isRoomSpace = t.id.startsWith('room_') || Boolean((t as any).roomNumber) || Boolean((t as any).roomName);
+    return isRoomSpace;
+  });
+
+  const sidebarItems = [
+    { name: 'Service Board', path: '/waiter', icon: Utensils },
+    { name: 'Rooms & Suites Status', path: '/waiter#rooms', icon: Hotel },
+    { 
+      name: 'Customer Alerts', 
+      path: '/waiter#alerts', 
+      icon: HelpCircle,
+      badge: alerts.length > 0 ? alerts.length : undefined,
+      badgeColor: 'amber'
+    },
+  ];
+
+  const handleTabClick = (tabId: string) => {
+    let hash = '';
+    if (tabId === 'Alerts') hash = 'alerts';
+    else if (tabId === 'Rooms') hash = 'rooms';
+    else if (tabId === 'Tables') hash = 'tables';
+    else if (tabId === 'Delivery') hash = 'delivery';
+    else if (tabId === 'Served') hash = 'served';
+    else if (tabId === 'CashierQueue') hash = 'cashier-queue';
+    else if (tabId === 'Completed') hash = 'completed';
+
+    const targetHash = hash ? `#${hash}` : '';
+    navigate(`${location.pathname}${targetHash}`, { replace: true });
+  };
+
+  // Synchronize location hash to active tab
+  useEffect(() => {
+    const hash = location.hash;
+    if (hash === '#alerts') {
+      setActiveSectionTab('Alerts');
+    } else if (hash === '#rooms') {
+      setActiveSectionTab('Rooms');
+    } else if (hash === '#tables') {
+      setActiveSectionTab('Tables');
+    } else if (hash === '#delivery') {
+      setActiveSectionTab('Delivery');
+    } else if (hash === '#served') {
+      setActiveSectionTab('Served');
+    } else if (hash === '#cashier-queue' || hash === '#cashierqueue') {
+      setActiveSectionTab('CashierQueue');
+    } else if (hash === '#completed') {
+      setActiveSectionTab('Completed');
+    } else {
+      setActiveSectionTab('All Sections');
+    }
+  }, [location.hash, location.pathname, navigate]);
+
+  // 1. Subscribe to Live Tables and Rooms
   useEffect(() => {
     let active = true;
 
     if (isMockMode) {
-      const loadLocalTables = () => {
-        const cached = localStorage.getItem(MOCK_TABLES_KEY);
-        if (cached) {
+      const loadLocalTablesAndRooms = () => {
+        const cachedTables = localStorage.getItem(MOCK_TABLES_KEY);
+        const cachedRooms = localStorage.getItem('restaurant_qr_mock_rooms_db');
+        
+        let unifiedList: any[] = [];
+        if (cachedTables) {
           try {
-            if (active) setTables(JSON.parse(cached));
-          } catch (e) {
-            if (active) setTables(defaultMockTables);
-          }
+            unifiedList = [...unifiedList, ...JSON.parse(cachedTables)];
+          } catch (e) {}
         } else {
-          localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify(defaultMockTables));
-          if (active) setTables(defaultMockTables);
+          unifiedList = [...unifiedList, ...defaultMockTables];
         }
+        
+        if (cachedRooms) {
+          try {
+            unifiedList = [...unifiedList, ...JSON.parse(cachedRooms)];
+          } catch (e) {}
+        }
+        
+        if (active) setTables(unifiedList);
         setLoading(false);
       };
 
-      loadLocalTables();
-      const interval = setInterval(loadLocalTables, 2000);
-      window.addEventListener('storage', loadLocalTables);
+      loadLocalTablesAndRooms();
+      const interval = setInterval(loadLocalTablesAndRooms, 2000);
+      window.addEventListener('storage', loadLocalTablesAndRooms);
       return () => {
         active = false;
         clearInterval(interval);
-        window.removeEventListener('storage', loadLocalTables);
+        window.removeEventListener('storage', loadLocalTablesAndRooms);
       };
     } else {
-      const colRef = collection(db, 'tenants', selectedTenantId, 'tables');
-      const unsubscribe = onSnapshot(colRef, (snap: any) => {
-        if (active) {
-          const list = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Table));
-          if (list.length === 0) {
-            setTables(defaultMockTables);
-          } else {
-            setTables(list);
-          }
-          setLoading(false);
-        }
+      const tablesRef = collection(db, 'tenants', selectedTenantId, 'tables');
+      const roomsRef = collection(db, 'tenants', selectedTenantId, 'rooms');
+      
+      let tablesList: any[] = [];
+      let roomsList: any[] = [];
+      
+      const updateUnifiedList = () => {
+        if (!active) return;
+        const unified = [...tablesList, ...roomsList];
+        console.log('[WaiterDashboard Debug] tablesList:', tablesList, 'roomsList:', roomsList, 'unified:', unified);
+        setTables(unified.length === 0 ? defaultMockTables : unified);
+        setLoading(false);
+      };
+
+      const unsubTables = onSnapshot(tablesRef, (snap: any) => {
+        tablesList = snap.docs
+          .map((d: any) => ({ id: d.id, ...d.data() }))
+          .filter((t: any) => !t.id.startsWith('room_')); // Filter out duplicate rooms
+        updateUnifiedList();
       }, (err: any) => {
-        console.error('Waiter tables load error:', err);
+        console.error('Tables load error:', err);
         setLoading(false);
       });
 
+      const unsubRooms = onSnapshot(roomsRef, (snap: any) => {
+        roomsList = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        updateUnifiedList();
+      }, (err: any) => {
+        console.warn('Rooms load warning:', err);
+      });
+      
       return () => {
-        unsubscribe();
+        unsubTables();
+        unsubRooms();
         active = false;
       };
     }
@@ -226,20 +330,27 @@ export const WaiterDashboard: React.FC = () => {
       prev.map((t) => (t.id === tableId ? { ...t, status: nextStatus } : t))
     );
 
+    const isRoom = tableId.startsWith('room_');
+
     if (isMockMode) {
-      const cached = localStorage.getItem(MOCK_TABLES_KEY);
+      const dbKey = isRoom ? 'restaurant_qr_mock_rooms_db' : MOCK_TABLES_KEY;
+      const cached = localStorage.getItem(dbKey);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
           const updated = parsed.map((t: any) =>
             t.id === tableId
-              ? { ...t, status: nextStatus, ...(nextStatus === 'available' ? { activeOrderId: null } : {}) }
+              ? { 
+                  ...t, 
+                  status: nextStatus, 
+                  ...(nextStatus === 'available' ? { activeOrderId: null, activeStayId: null } : {}) 
+                }
               : t
           );
-          localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify(updated));
+          localStorage.setItem(dbKey, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
           if (nextStatus === 'available') {
-            await EventService.logEvent(selectedTenantId, 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, true);
+            await EventService.logEvent(selectedTenantId, isRoom ? 'room.cleaned' : 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, true);
           }
         } catch (e) {}
       }
@@ -248,13 +359,17 @@ export const WaiterDashboard: React.FC = () => {
         const payload: any = { status: nextStatus };
         if (nextStatus === 'available') {
           payload.activeOrderId = null;
+          if (isRoom) {
+            payload.activeStayId = null;
+          }
         }
-        await setDoc(doc(db, 'tenants', selectedTenantId, 'tables', tableId), payload, { merge: true });
+        const collectionName = isRoom ? 'rooms' : 'tables';
+        await setDoc(doc(db, 'tenants', selectedTenantId, collectionName, tableId), payload, { merge: true });
         if (nextStatus === 'available') {
-          await EventService.logEvent(selectedTenantId, 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, false);
+          await EventService.logEvent(selectedTenantId, isRoom ? 'room.cleaned' : 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, false);
         }
       } catch (err) {
-        console.error('Failed to save table status:', err);
+        console.error('Failed to save space status:', err);
       }
     }
   };
@@ -278,6 +393,33 @@ export const WaiterDashboard: React.FC = () => {
         await deleteDoc(doc(db, 'tenants', selectedTenantId, 'waiter_alerts', alertId));
       } catch (err) {
         console.error('Failed to dismiss alert:', err);
+      }
+    }
+  };
+
+  // Handle service alert accept
+  const handleAcceptAlert = async (alertId: string) => {
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, status: 'accepted' as const } : a))
+    );
+
+    if (isMockMode) {
+      const cached = localStorage.getItem(MOCK_ALERTS_KEY);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const updated = parsed.map((a: any) =>
+            a.id === alertId ? { ...a, status: 'accepted' } : a
+          );
+          localStorage.setItem(MOCK_ALERTS_KEY, JSON.stringify(updated));
+          window.dispatchEvent(new Event('storage'));
+        } catch (e) {}
+      }
+    } else {
+      try {
+        await updateDoc(doc(db, 'tenants', selectedTenantId, 'waiter_alerts', alertId), { status: 'accepted' });
+      } catch (err) {
+        console.error('Failed to accept alert:', err);
       }
     }
   };
@@ -469,32 +611,176 @@ export const WaiterDashboard: React.FC = () => {
     .filter((o) => o.status === 'completed' || o.payment?.status === 'paid')
     .sort((a, b) => getMs(b.updatedAt || b.createdAt) - getMs(a.updatedAt || a.createdAt));
 
-  const resolvedTables = tables.map((t) => {
-    const hasActiveOrder = orders.some(
-      (o) => (o.tableId === t.id || o.tableNumber === t.number) && 
-             o.status !== 'completed' && 
-             o.status !== 'archived' &&
-             o.payment?.status !== 'paid'
-    );
 
-    if (hasActiveOrder && t.status !== 'occupied') {
-      return { ...t, status: 'occupied' as const };
-    }
-    if (!hasActiveOrder && t.status === 'occupied') {
-      return { ...t, status: 'cleaning' as const };
-    }
-    return t;
-  });
+
+  const renderCustomerAlerts = (isSidebarLayout = false) => {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl">
+              <HelpCircle className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Customer Alerts</h3>
+              <p className="text-xs text-zinc-500 font-normal">Live customer alerts & cashier requests.</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-xl">
+            {alerts.length} Pending
+          </span>
+        </div>
+
+        <div className={`grid gap-6 ${isSidebarLayout ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {alerts.map((a) => (
+            <div key={a.id} className="border border-amber-500/30 bg-amber-955/10 p-5 rounded-3xl space-y-4 shadow-xl">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="text-amber-400 bg-amber-500/20 p-2.5 rounded-2xl">
+                    {a.type === 'call_waiter' ? <HelpCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+                  </div>
+                  <div>
+                    <h4 className="text-base font-extrabold text-white">{a.tableNumber}</h4>
+                    <span className="text-[10px] text-zinc-500 font-mono">{a.time}</span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/30">
+                  {a.type === 'call_waiter' ? 'Call' : 'Bill'}
+                </span>
+              </div>
+
+              <p className="text-xs text-zinc-350 leading-relaxed bg-zinc-950/60 p-3 rounded-2xl border border-zinc-900">
+                {(() => {
+                  const isRoom = a.isRoom || a.tableNumber.toLowerCase().includes('room');
+                  if (a.type === 'call_waiter') {
+                    return isRoom ? 'Guest requested room assistance.' : 'Guest requested table assistance.';
+                  } else {
+                    return isRoom ? 'Guest requested room bill printed.' : 'Guest requested bill printed.';
+                  }
+                })()}
+              </p>
+
+              {/* Additional location metadata context (Room stay details or Table order details) */}
+              {(() => {
+                const isRoom = a.isRoom || a.tableNumber.toLowerCase().includes('room');
+                if (isRoom) {
+                  return (
+                    <div className="text-[10px] text-zinc-400 bg-zinc-950/40 p-2.5 rounded-2xl border border-zinc-900/60 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Guest Name:</span>
+                        <span className="font-extrabold text-zinc-200">{a.guestName || 'In-Room Guest'}</span>
+                      </div>
+                      {a.stayId && (
+                        <div className="flex justify-between">
+                          <span>Stay Session:</span>
+                          <span className="font-mono text-[9px] text-amber-400/80">{a.stayId}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                } else {
+                  const activeOrder = orders.find(
+                    (o) => (o.tableNumber === a.tableNumber || `Table ${o.tableId}` === a.tableNumber) &&
+                           o.status !== 'completed' &&
+                           o.status !== 'archived' &&
+                           o.payment?.status !== 'paid'
+                  );
+                  return activeOrder ? (
+                    <div className="text-[10px] text-zinc-400 bg-zinc-950/40 p-2.5 rounded-2xl border border-zinc-900/60 space-y-1">
+                      <div className="flex justify-between">
+                        <span>Active Order:</span>
+                        <span className="font-mono text-[9px] text-emerald-400">{activeOrder.id.slice(0, 8)}...</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Order Total:</span>
+                        <span className="font-extrabold text-zinc-200">₹{(activeOrder.totals?.grandTotal || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-zinc-500 italic px-1">
+                      No active order details
+                    </div>
+                  );
+                }
+              })()}
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-500/20">
+                {a.status === 'accepted' ? (
+                  a.type === 'call_waiter' ? (
+                    <button
+                      onClick={() => handleDismissAlert(a.id)}
+                      className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Complete
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const activeOrder = orders.find(
+                          (o) => (o.tableNumber === a.tableNumber || `Table ${o.tableId}` === a.tableNumber) &&
+                                 o.status !== 'completed' &&
+                                 o.status !== 'archived' &&
+                                 o.payment?.status !== 'paid'
+                        );
+                        if (activeOrder) {
+                          handleSendToCashier(activeOrder.id, a.tableNumber);
+                          handleDismissAlert(a.id);
+                        } else {
+                          toast.error(`No active order found for ${a.tableNumber}!`);
+                        }
+                      }}
+                      className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <CreditCard className="h-3.5 w-3.5" />
+                      To Cashier
+                    </button>
+                  )
+                ) : (
+                  <button
+                    onClick={() => handleAcceptAlert(a.id)}
+                    className="py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Accept
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDismissAlert(a.id)}
+                  className="py-2.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer text-center"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {alerts.length === 0 && (
+            <div className="col-span-full border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
+              <CheckCircle className="h-8 w-8 mx-auto text-amber-500/20 mb-3" />
+              <p className="text-xs font-semibold text-zinc-400">All customer alerts clear</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+
 
   return (
-    <DashboardLayout title="Waiter Service Console" sidebarItems={sidebarItems}>
+    <DashboardLayout 
+      title="Waiter Service Console" 
+      sidebarItems={sidebarItems}
+    >
       <div className="space-y-8 animate-fadeIn">
         {/* Section Navigation Tabs Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-900 pb-4">
           <div className="flex flex-wrap gap-2">
             {[
               { id: 'All Sections', label: 'All Sections' },
-              { id: 'Tables', label: `Dining Tables (${resolvedTables.length})` },
+              { id: 'Tables', label: `Dining Tables (${diningTablesOnly.length})` },
+              { id: 'Rooms', label: `Rooms (${roomsOnly.length})` },
               { id: 'Delivery', label: `Ready for Delivery (${readyForDeliveryOrders.length})` },
               { id: 'Served', label: `Served to Tables (${currentlyServedOrders.length})` },
               { id: 'CashierQueue', label: `Sent to Cashier (${sentToCashierOrders.length})` },
@@ -503,7 +789,7 @@ export const WaiterDashboard: React.FC = () => {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveSectionTab(tab.id)}
+                onClick={() => handleTabClick(tab.id)}
                 className={`px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
                   activeSectionTab === tab.id
                     ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
@@ -545,7 +831,18 @@ export const WaiterDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* SECTION 1: Dining Tables Status */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+          {/* Left Column: Customer Alerts */}
+          {((activeSectionTab === 'All Sections' && alerts.length > 0) || activeSectionTab === 'Alerts') && (
+            <div className={`space-y-4 xl:col-span-4 ${activeSectionTab === 'Alerts' ? 'xl:col-span-12' : ''}`}>
+              {renderCustomerAlerts(activeSectionTab === 'All Sections')}
+            </div>
+          )}
+
+          {/* Right Column: Other Board Sections */}
+          {(activeSectionTab !== 'Alerts') && (
+            <div className={`space-y-8 ${activeSectionTab === 'All Sections' && alerts.length > 0 ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
+              {/* SECTION 1: Dining Tables Status */}
         {(activeSectionTab === 'All Sections' || activeSectionTab === 'Tables') && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
@@ -559,24 +856,29 @@ export const WaiterDashboard: React.FC = () => {
                 </div>
               </div>
               <span className="text-xs text-zinc-400 font-bold bg-zinc-900 px-3 py-1 rounded-xl">
-                {resolvedTables.length} Tables Registered
+                {diningTablesOnly.length} Tables Registered
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {resolvedTables.map((t) => {
+              {diningTablesOnly.map((t) => {
                 let statusClass = 'border-zinc-900 bg-zinc-900/10 text-zinc-400';
                 if (t.status === 'occupied') statusClass = 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400';
                 else if (t.status === 'reserved') statusClass = 'border-violet-500/20 bg-violet-500/5 text-violet-400';
                 else if (t.status === 'cleaning') statusClass = 'border-orange-500/20 bg-orange-500/5 text-orange-400';
 
+                const spaceName = t.number || `Table ${t.id.replace(/^t_|^table_|^t/, '')}`;
+                const spaceCapacity = (t as any).capacity ?? t.seatingCapacity ?? 4;
+
                 return (
                   <div key={t.id} className={`border p-4.5 rounded-2xl flex flex-col justify-between h-44 shadow-lg transition duration-200 hover:border-zinc-800 ${statusClass}`}>
                     <div>
                       <div className="flex justify-between items-start">
-                        <span className="font-extrabold text-base text-white">{t.number}</span>
+                        <span className="font-extrabold text-base text-white">
+                          {spaceName}
+                        </span>
                         <span className="text-[9px] uppercase tracking-wider bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded-md font-bold">
-                          Cap: {t.seatingCapacity}
+                          Cap: {spaceCapacity}
                         </span>
                       </div>
                       
@@ -593,7 +895,9 @@ export const WaiterDashboard: React.FC = () => {
                     </div>
 
                     <div className="space-y-1.5 mt-4">
-                      <p className="text-[8px] font-bold text-zinc-600 uppercase tracking-wider">Change Table Status</p>
+                      <p className="text-[8px] font-bold text-zinc-600 uppercase tracking-wider">
+                        Change Table Status
+                      </p>
                       <div className="grid grid-cols-3 gap-1.5">
                         {(['available', 'occupied', 'cleaning'] as const).map((status) => {
                           const isActive = t.status === status;
@@ -618,6 +922,95 @@ export const WaiterDashboard: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 1B: Rooms & Suites Status */}
+        {((activeSectionTab === 'All Sections' && roomsOnly.length > 0) || activeSectionTab === 'Rooms') && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-xl">
+                  <Hotel className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Rooms & Suites Status</h3>
+                  <p className="text-xs text-zinc-500 font-normal">Real-time room occupancy and guest service status</p>
+                </div>
+              </div>
+              <span className="text-xs text-zinc-400 font-bold bg-zinc-900 px-3 py-1 rounded-xl">
+                {roomsOnly.length} Rooms Registered
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {roomsOnly.map((t) => {
+                let statusClass = 'border-zinc-900 bg-zinc-900/10 text-zinc-400';
+                if (t.status === 'occupied') statusClass = 'border-violet-500/20 bg-violet-500/5 text-violet-400';
+                else if (t.status === 'reserved') statusClass = 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400';
+                else if (t.status === 'cleaning') statusClass = 'border-orange-500/20 bg-orange-500/5 text-orange-400';
+
+                const spaceName = (t as any).roomName || ((t as any).roomNumber ? `Room ${(t as any).roomNumber}` : `Room ${t.id.replace('room_', '').slice(0, 4).toUpperCase()}`);
+                const spaceCapacity = (t as any).capacity ?? t.seatingCapacity ?? 4;
+
+                return (
+                  <div key={t.id} className={`border p-4.5 rounded-2xl flex flex-col justify-between h-44 shadow-lg transition duration-200 hover:border-zinc-800 ${statusClass}`}>
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <span className="font-extrabold text-base text-white">
+                          {spaceName}
+                        </span>
+                        <span className="text-[9px] uppercase tracking-wider bg-zinc-900 text-zinc-500 px-2 py-0.5 rounded-md font-bold">
+                          Cap: {spaceCapacity}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          t.status === 'available' ? 'bg-zinc-500' :
+                          t.status === 'occupied' ? 'bg-violet-500 animate-pulse' :
+                          t.status === 'reserved' ? 'bg-emerald-500' : 'bg-orange-500'
+                        }`} />
+                        <span className="text-xs uppercase font-extrabold tracking-wider capitalize text-zinc-300">
+                          {t.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 mt-4">
+                      <p className="text-[8px] font-bold text-zinc-600 uppercase tracking-wider">
+                        Change Room Status
+                      </p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['available', 'occupied', 'cleaning'] as const).map((status) => {
+                          const isActive = t.status === status;
+                          let btnStyle = 'bg-zinc-950 text-zinc-550 border border-zinc-900 hover:bg-zinc-900';
+                          if (isActive) {
+                            if (status === 'available') btnStyle = 'bg-zinc-850 text-white border-zinc-750 font-extrabold';
+                            if (status === 'occupied') btnStyle = 'bg-violet-500 text-white border-violet-600 font-extrabold';
+                            if (status === 'cleaning') btnStyle = 'bg-orange-500 text-white border-orange-600 font-extrabold';
+                          }
+                          return (
+                            <button
+                              key={status}
+                              onClick={() => handleUpdateTableStatus(t.id, status)}
+                              className={`py-1.5 text-[9px] font-bold uppercase rounded-lg transition cursor-pointer text-center ${btnStyle}`}
+                            >
+                              {status === 'available' ? 'Free' : status === 'occupied' ? 'Occ' : 'Clean'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {roomsOnly.length === 0 && (
+                <div className="col-span-full border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
+                  <p className="text-xs font-semibold text-zinc-400">No rooms registered</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -844,87 +1237,7 @@ export const WaiterDashboard: React.FC = () => {
         )}
 
         {/* SECTION 4: Customer Alerts & Send to Cashier */}
-        {(activeSectionTab === 'All Sections' || activeSectionTab === 'Alerts') && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl">
-                  <HelpCircle className="h-4.5 w-4.5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Customer Service Alerts & Cashier Routing</h3>
-                  <p className="text-xs text-zinc-500">Live waiter call requests & billing print calls sent to cashier console</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-xl">
-                {alerts.length} Pending Alerts
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {alerts.map((a) => (
-                <div key={a.id} className="border border-amber-500/30 bg-amber-950/10 p-5 rounded-3xl space-y-4 shadow-xl">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="text-amber-400 bg-amber-500/20 p-2.5 rounded-2xl">
-                        {a.type === 'call_waiter' ? <HelpCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
-                      </div>
-                      <div>
-                        <h4 className="text-base font-extrabold text-white">{a.tableNumber}</h4>
-                        <span className="text-[10px] text-zinc-500 font-mono">{a.time}</span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/30">
-                      {a.type === 'call_waiter' ? 'Call Waiter' : 'Bill Request'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-zinc-300 leading-relaxed bg-zinc-950/50 p-3 rounded-2xl border border-zinc-900">
-                    {a.type === 'call_waiter'
-                      ? 'Guest requested table assistance / menu query.'
-                      : 'Guest requested bill printing & payment settlement.'}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-500/20">
-                    <button
-                      onClick={() => {
-                        const activeOrder = orders.find(
-                          (o) => (o.tableNumber === a.tableNumber || `Table ${o.tableId}` === a.tableNumber) &&
-                                 o.status !== 'completed' &&
-                                 o.status !== 'archived' &&
-                                 o.payment?.status !== 'paid'
-                        );
-                        if (activeOrder) {
-                          handleSendToCashier(activeOrder.id, a.tableNumber);
-                          handleDismissAlert(a.id);
-                        } else {
-                          toast.error(`No active order found for ${a.tableNumber}!`);
-                        }
-                      }}
-                      className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md"
-                    >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      Send Cashier
-                    </button>
-                    <button
-                      onClick={() => handleDismissAlert(a.id)}
-                      className="py-2.5 border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-zinc-300 font-bold text-xs uppercase rounded-xl transition cursor-pointer text-center"
-                    >
-                      Dismiss Alert
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {alerts.length === 0 && (
-                <div className="col-span-full border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
-                  <CheckCircle className="h-8 w-8 mx-auto text-amber-500/20 mb-3" />
-                  <p className="text-xs font-semibold text-zinc-400">All customer alerts clear</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {activeSectionTab === 'Alerts' && renderCustomerAlerts(false)}
 
         {/* SECTION 5: Completed Orders (COMPLETED ORDER) */}
         {(activeSectionTab === 'All Sections' || activeSectionTab === 'Completed') && (
@@ -995,6 +1308,9 @@ export const WaiterDashboard: React.FC = () => {
             </div>
           </div>
         )}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

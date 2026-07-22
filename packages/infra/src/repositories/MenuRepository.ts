@@ -117,6 +117,9 @@ export class MenuRepository implements IMenuRepository {
     const colRef = collection(this.db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter);
     return onSnapshot(colRef, (snap: any) => {
       callback(snap.docs.map((doc: any) => doc.data()));
+    }, (err: any) => {
+      console.warn("Firestore menu subscription permission error:", err);
+      callback([]);
     });
   }
 }

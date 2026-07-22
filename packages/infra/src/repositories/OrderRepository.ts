@@ -170,6 +170,9 @@ export class OrderRepository implements IOrderRepository {
     const q = query(colRef, where('status', 'not-in', ['completed', 'archived']));
     return onSnapshot(q, (snap: any) => {
       callback(snap.docs.map((doc: any) => doc.data() as Order));
+    }, (err: any) => {
+      console.warn("Firestore active orders subscription permission error:", err);
+      callback([]);
     });
   }
 
@@ -180,6 +183,9 @@ export class OrderRepository implements IOrderRepository {
       const list: Order[] = snap.docs.map((doc: any) => doc.data() as Order);
       list.sort((a: Order, b: Order) => b.createdAt.getTime() - a.createdAt.getTime());
       callback(list);
+    }, (err: any) => {
+      console.warn("Firestore all orders subscription permission error:", err);
+      callback([]);
     });
   }
 }

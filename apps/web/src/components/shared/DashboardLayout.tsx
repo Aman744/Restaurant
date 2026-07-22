@@ -3,16 +3,20 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../features/auth/context/AuthContext';
 import { useUserProfile } from '../../features/auth/context/UserContext';
-import { LogOut, Menu, User, Bell, X, CheckCheck, Trash2, ShoppingBag, Utensils, Sparkles } from 'lucide-react';
+import { LogOut, Menu, User, Bell, X, CheckCheck, Trash2, ShoppingBag, Utensils, Sparkles, Sun, Moon } from 'lucide-react';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
+import { useColorMode } from '../../features/auth/context/ThemeContext';
 import { db } from '../../lib/firebase.js';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { OrderConverter } from '@restaurant-qr/infra';
 
 interface SidebarItem {
   name: string;
-  path: string;
+  path?: string;
   icon: React.ComponentType<any>;
+  subItems?: SidebarItem[];
+  badge?: string | number;
+  badgeColor?: string;
 }
 
 interface DashboardLayoutProps {
@@ -49,6 +53,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   const { logout } = useAuth();
   const { profile } = useUserProfile();
   const { tenant } = useTenant();
+  const { mode, toggleColorMode } = useColorMode();
   const { isMockMode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -79,6 +84,43 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const isImpersonating = !!localStorage.getItem('impersonate_role');
+
+  const handleThemeToggle = async () => {
+    const newMode = mode === 'light' ? 'dark' : 'light';
+    toggleColorMode();
+
+    const isAdmin = profile && ['super-admin', 'restaurant-admin', 'manager'].includes(profile.role);
+    if (isAdmin) {
+      if (isMockMode) {
+        try {
+          const cachedWhiteLabel = localStorage.getItem('restaurant_qr_system_whitelabel');
+          let currentConfig = {
+            defaultTheme: newMode,
+            primaryColor: '#10b981',
+            fontFamily: 'Inter',
+            restaurantName: 'Aman\'s QR Platform'
+          };
+          if (cachedWhiteLabel) {
+            currentConfig = { ...currentConfig, ...JSON.parse(cachedWhiteLabel), defaultTheme: newMode };
+          }
+          localStorage.setItem('restaurant_qr_system_whitelabel', JSON.stringify(currentConfig));
+          window.dispatchEvent(new Event('storage'));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        try {
+          await setDoc(doc(db, 'system_settings', 'general'), {
+            whiteLabelConfig: {
+              defaultTheme: newMode
+            }
+          }, { merge: true });
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+    }
+  };
 
   const playBellSound = () => {
     try {
@@ -195,7 +237,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    window.location.href = '/';
   };
 
   const handleMarkAllRead = () => {
@@ -277,32 +319,89 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
             ) : (
               <>
                 <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-white shadow-md shadow-emerald-500/20 shrink-0">
-                  {tenant?.name ? tenant.name.charAt(0).toUpperCase() : 'Q'}
+                  {tenant?.name ? tenant.name.charAt(0).toUpperCase() : 'H'}
                 </div>
                 <span className="font-semibold tracking-wide text-zinc-100 truncate max-w-[140px]">
-                  {tenant?.name || 'QR Ordering'}
+                  {tenant?.name || 'Hotel & Restaurant'}
                 </span>
               </>
             )}
           </div>
 
           {/* Navigation Links */}
-          <nav className="p-4 space-y-1.5">
+          <nav className="p-4 space-y-1.5 overflow-y-auto max-h-[calc(100vh-10rem)]">
             {sidebarItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path;
+              if (item.subItems && item.subItems.length > 0) {
+                return (
+                  <div key={item.name} className="space-y-1">
+                    <div className="flex items-center gap-3 px-4 py-1 text-[9px] font-extrabold uppercase tracking-widest text-zinc-500 mt-4 mb-0.5 select-none">
+                      <span>{item.name}</span>
+                    </div>
+                    {item.subItems.map((child: SidebarItem) => {
+                      const ChildIcon = child.icon;
+                      const isChildCurrent = child.path ? location.pathname === child.path : false;
+                      const isAlertBadge = child.badge !== undefined;
+                      return (
+                        <Link
+                          key={child.name}
+                          to={child.path || '#'}
+                          className={`flex items-center justify-between gap-3 px-6 py-2.5 text-xs font-semibold transition duration-200 rounded-xl ${
+                            isChildCurrent
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                              : isAlertBadge
+                              ? 'bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse font-extrabold'
+                              : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <ChildIcon className={`h-4 w-4 ${isAlertBadge ? 'text-red-400' : ''}`} />
+                            <span>{child.name}</span>
+                          </div>
+                          {child.badge !== undefined && (
+                            <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-500 text-white rounded-full shrink-0">
+                              {child.badge}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                );
+              }
+
+              const pathBase = item.path ? item.path.split('#')[0] : '';
+              const pathHash = item.path?.includes('#') ? item.path.substring(item.path.indexOf('#')) : '';
+              const isPathMatch = location.pathname === pathBase;
+              const isHashMatch = location.hash === pathHash;
+              const isCurrent = isPathMatch && isHashMatch;
+              const isAlertBadge = item.badge !== undefined && item.name === 'Customer Alerts';
+
               return (
                 <Link
                   key={item.name}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition duration-200 rounded-xl ${
-                    isActive
+                  to={item.path || '#'}
+                  className={`flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition duration-200 rounded-xl ${
+                    isCurrent
                       ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                      : isAlertBadge
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse font-extrabold'
                       : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
                   }`}
                 >
-                  <Icon className="h-4.5 w-4.5" />
-                  {item.name}
+                  <div className="flex items-center gap-3">
+                    <Icon className={`h-4.5 w-4.5 ${isAlertBadge ? 'text-amber-400' : ''}`} />
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge !== undefined && (
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                      item.badgeColor === 'amber' || isAlertBadge
+                        ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+                        : 'bg-zinc-800 text-zinc-300'
+                    }`}>
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -351,6 +450,19 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 Exit Impersonate
               </button>
             )}
+
+            {/* Theme Mode Toggle Button */}
+            <button
+              onClick={handleThemeToggle}
+              className="p-2.5 rounded-xl border transition cursor-pointer bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-900 light:bg-zinc-100 light:border-zinc-200 light:text-zinc-500 light:hover:bg-zinc-200 light:hover:text-zinc-800 mr-1"
+              title={mode === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+            >
+              {mode === 'light' ? (
+                <Moon className="h-4.5 w-4.5" />
+              ) : (
+                <Sun className="h-4.5 w-4.5 text-amber-500" />
+              )}
+            </button>
 
             {/* Notification Bell Trigger */}
             <div className="relative">
@@ -493,22 +605,78 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                   <nav className="space-y-1.5">
                     {sidebarItems.map((item) => {
                       const Icon = item.icon;
-                      const isActive = location.pathname === item.path;
-                      return (
-                        <Link
-                          key={item.name}
-                          to={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition ${
-                            isActive
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
-                              : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
-                          }`}
-                        >
-                          <Icon className="h-4.5 w-4.5" />
-                          {item.name}
-                        </Link>
-                      );
+                      if (item.subItems && item.subItems.length > 0) {
+                        return (
+                          <div key={item.name} className="space-y-1">
+                            <div className="flex items-center gap-3 px-4 py-1 text-[9px] font-extrabold uppercase tracking-widest text-zinc-500 mt-4 mb-0.5 select-none">
+                              <span>{item.name}</span>
+                            </div>
+                            {item.subItems.map((child: SidebarItem) => {
+                              const ChildIcon = child.icon;
+                               const isChildCurrent = child.path ? location.pathname === child.path : false;
+                               const isAlertBadge = child.badge !== undefined;
+                              return (
+                                <Link
+                                  key={child.name}
+                                  to={child.path || '#'}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className={`flex items-center justify-between gap-3 px-6 py-2 text-xs font-semibold rounded-xl transition ${
+                                    isChildCurrent
+                                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                                      : isAlertBadge
+                                      ? 'bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse font-extrabold'
+                                      : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <ChildIcon className={`h-4 w-4 ${isAlertBadge ? 'text-red-400' : ''}`} />
+                                    <span>{child.name}</span>
+                                  </div>
+                                  {child.badge !== undefined && (
+                                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-500 text-white rounded-full shrink-0">
+                                      {child.badge}
+                                    </span>
+                                  )}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      
+                       const isPathMatch = item.path ? location.pathname === item.path.split('#')[0] : false;
+                       const isHashMatch = item.path?.includes('#') ? location.hash === item.path.substring(item.path.indexOf('#')) : true;
+                       const isCurrent = isPathMatch && isHashMatch;
+                       const isAlertBadge = item.badge !== undefined && item.name === 'Customer Alerts';
+
+                       return (
+                         <Link
+                           key={item.name}
+                           to={item.path || '#'}
+                           onClick={() => setMobileMenuOpen(false)}
+                           className={`flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium rounded-xl transition ${
+                             isCurrent
+                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                               : isAlertBadge
+                               ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse font-extrabold'
+                               : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200'
+                           }`}
+                         >
+                           <div className="flex items-center gap-3">
+                             <Icon className={`h-4.5 w-4.5 ${isAlertBadge ? 'text-amber-400' : ''}`} />
+                             <span>{item.name}</span>
+                           </div>
+                           {item.badge !== undefined && (
+                             <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                               item.badgeColor === 'amber' || isAlertBadge
+                                 ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
+                                 : 'bg-zinc-800 text-zinc-300'
+                             }`}>
+                               {item.badge}
+                             </span>
+                           )}
+                         </Link>
+                       );
                     })}
                   </nav>
                 </div>

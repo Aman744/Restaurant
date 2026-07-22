@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles, Eye, X } from 'lucide-react';
+import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles, Eye, X, DoorOpen } from 'lucide-react';
 import { RevenueCard } from './RevenueCard';
 import { KitchenLoadCard } from './KitchenLoadCard';
 import { OccupancyCard } from './OccupancyCard';
 import { TodaysOrdersCard } from './TodaysOrdersCard';
 import type { Order } from '@restaurant-qr/core';
-import { useOrders, useTables } from '../../../hooks/useRealtimeData';
+import { useOrders, useTables, useRooms } from '../../../hooks/useRealtimeData';
+import { usePermission } from '../../auth/context/PermissionContext.js';
 
 interface DashboardOverviewTabProps {
   tenantId: string;
@@ -24,8 +25,11 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
 
   const { orders, loading: ordersLoading } = useOrders(tenantId, isMockMode);
   const { tables, loading: tablesLoading } = useTables(tenantId, isMockMode);
+  const { rooms, loading: roomsLoading } = useRooms(tenantId, isMockMode);
+  const { isFeatureEnabled } = usePermission();
+  const roomsActive = isFeatureEnabled('rooms');
 
-  const loading = ordersLoading || tablesLoading;
+  const loading = ordersLoading || tablesLoading || (roomsActive && roomsLoading);
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   const safeTables = Array.isArray(tables) ? tables : [];
@@ -166,10 +170,30 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
       </div>
 
       {/* Metric Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${roomsActive ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} gap-4 sm:gap-5`}>
         <RevenueCard totalRevenue={totalRevenue} revenueChangePercent={revenueChangePercent} currencySymbol={currencySymbol} />
         <KitchenLoadCard preparingOrdersCount={preparingOrders} />
         <OccupancyCard occupiedTablesCount={occupiedTables} totalTablesCount={safeTables.length} />
+        {roomsActive && (
+          <div className="border border-zinc-900 bg-zinc-900/10 p-5 rounded-3xl space-y-3">
+            <div className="flex justify-between items-center text-zinc-500">
+              <span className="text-xs font-bold uppercase tracking-wider">Rooms Occupancy</span>
+              <DoorOpen className="h-4.5 w-4.5 text-indigo-400" />
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-black text-white">
+                {rooms.filter((r) => r.status === 'occupied' || r.status === 'checked-in').length}
+              </span>
+              <span className="text-[10px] text-zinc-500 font-semibold">/ {rooms.length} rooms occupied</span>
+            </div>
+            <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden">
+              <div 
+                className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${rooms.length > 0 ? (rooms.filter((r) => r.status === 'occupied' || r.status === 'checked-in').length / rooms.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
         <TodaysOrdersCard totalOrdersCount={safeOrders.length} />
       </div>
 

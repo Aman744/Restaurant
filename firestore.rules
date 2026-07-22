@@ -67,6 +67,68 @@ service cloud.firestore {
         );
       }
 
+      // ─── Publicly readable rooms ────────────────────────────────────────
+      match /rooms/{roomId} {
+        allow read, update: if true;
+        allow write: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
+      // ─── Publicly readable/writeable active room stays (for customer check-ins)
+      match /active_room_stays/{stayId} {
+        allow read, write: if true;
+      }
+
+      // ─── Publicly readable/writeable stay guests (for joining/session tokens)
+      match /stay_guests/{guestId} {
+        allow read, write: if true;
+      }
+
+      // ─── Publicly readable/createable housekeeping tasks (customers request services)
+      match /housekeeping_tasks/{taskId} {
+        allow read, create: if true;
+        allow update, delete: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
+      // ─── Publicly createable room feedback
+      match /room_feedback/{feedbackId} {
+        allow create: if true;
+        allow read: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
+      // ─── Publicly createable waiter alerts (Customers request assistance, staff read/write)
+      match /waiter_alerts/{alertId} {
+        allow create: if true;
+        allow read, update, delete: if isAuthenticated() && (
+          isSuperAdmin() ||
+          userTenantId() == tenantId ||
+          (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.tenantId == tenantId
+          )
+        );
+      }
+
       // ─── Publicly createable orders (Customers submit orders, staff read/write)
       match /orders/{orderId} {
         allow create, get: if true;

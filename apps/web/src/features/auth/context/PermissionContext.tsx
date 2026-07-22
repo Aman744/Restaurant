@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useUserProfile } from './UserContext.js';
 import { useTenant } from './TenantContext.js';
+import { useAuth } from './AuthContext.js';
+import { FeatureService } from '../../../services/FeatureService.js';
 import type { UserRole } from '@restaurant-qr/core';
 
 interface PermissionContextType {
@@ -15,10 +17,12 @@ const PermissionContext = createContext<PermissionContextType | undefined>(undef
 
 export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile, loading: profileLoading } = useUserProfile();
-  const { loading: tenantLoading } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const { isMockMode } = useAuth();
 
   const [role, setRole] = useState<UserRole | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [effectiveFeatures, setEffectiveFeatures] = useState<Record<string, boolean>>({});
   
   // Combine profile and tenant loading states
   const loading = profileLoading || tenantLoading;
@@ -33,15 +37,34 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, [profile]);
 
+  // Load and cache effective features dynamically
+  useEffect(() => {
+    let active = true;
+    const fetchFeatures = async () => {
+      if (tenant) {
+        const flags = await FeatureService.getEffectiveFeatures(tenant, isMockMode);
+        if (active) {
+          setEffectiveFeatures(flags);
+        }
+      } else {
+        if (active) {
+          setEffectiveFeatures({});
+        }
+      }
+    };
+    if (!tenantLoading) {
+      fetchFeatures();
+    }
+    return () => { active = false; };
+  }, [tenant, tenantLoading, isMockMode]);
+
   const hasPermission = (permission: string): boolean => {
     if (role === 'super-admin') return true;
     return permissions.includes(permission);
   };
 
-  const isFeatureEnabled = (_flag: string): boolean => {
-    // In production, flags are defined in the Tenant Document custom parameters.
-    // For now, default them to enabled.
-    return true;
+  const isFeatureEnabled = (flag: string): boolean => {
+    return !!effectiveFeatures[flag];
   };
 
   return (

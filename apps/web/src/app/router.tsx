@@ -1,6 +1,8 @@
-import React from 'react';
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/shared/ProtectedRoute';
+import { CombinedGuard } from '../components/shared/CombinedGuard';
+import { FEATURES } from '@restaurant-qr/core';
 import { AccessDenied } from '../components/shared/AccessDenied';
 import { NotFound } from '../components/shared/NotFound';
 import { LoginPortal } from '../pages/login/LoginPortal';
@@ -12,18 +14,32 @@ import { CashierDashboard } from '../pages/cashier/CashierDashboard';
 import { InvoicesHistoryPage } from '../pages/cashier/InvoicesHistoryPage';
 import { CustomerMenu } from '../pages/customer/CustomerMenu';
 import { QRScanner } from '../pages/customer/QRScanner';
+import { useUserProfile } from '../features/auth/context/UserContext.js';
 import { Store, ShieldCheck, ChefHat, Utensils, CreditCard, UserCheck, Smartphone } from 'lucide-react';
 
 const RootIndex: React.FC = () => {
+  const { profile } = useUserProfile();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (profile) {
+      let targetDashboard = '/admin';
+      if (profile.role === 'super-admin') targetDashboard = '/super-admin';
+      else if (profile.role === 'manager') targetDashboard = '/manager';
+      else if (profile.role === 'kitchen-staff') targetDashboard = '/kitchen';
+      else if (profile.role === 'waiter') targetDashboard = '/waiter';
+      else if (profile.role === 'cashier') targetDashboard = '/cashier';
+
+      navigate(targetDashboard);
+    }
+  }, [profile, navigate]);
+
   return (
     <div className="flex min-h-screen w-screen flex-col items-center justify-center bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 text-white p-6">
       <div className="max-w-2xl text-center space-y-4">
         <h1 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-          Restaurant QR SaaS
+          Hotel & Restaurant Management
         </h1>
-        <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
-          Enterprise Monorepo Blueprint. Click any portal below to inspect the interface and role permissions.
-        </p>
 
         {/* Portals grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-10 text-left">
@@ -129,13 +145,15 @@ const RootIndex: React.FC = () => {
     </div>
   );
 };
+
 export const AppRouter: React.FC = () => {
   return (
     <Routes>
-      {/* Root Portal Showcase */}
+      {/* Root Path - Show All Login Portals */}
       <Route path="/" element={<RootIndex />} />
 
       {/* Login Portals */}
+      <Route path="/login" element={<LoginPortal />} />
       <Route path="/super-admin/login" element={<LoginPortal />} />
       <Route path="/admin/login" element={<LoginPortal />} />
       <Route path="/manager/login" element={<LoginPortal />} />
@@ -193,6 +211,14 @@ export const AppRouter: React.FC = () => {
         }
       />
       <Route
+        path="/admin/"
+        element={
+          <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/menu"
         element={
           <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
@@ -206,6 +232,16 @@ export const AppRouter: React.FC = () => {
           <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/rooms"
+        element={
+          <CombinedGuard feature={FEATURES.ROOMS} permission="rooms">
+            <ProtectedRoute allowedRoles={['restaurant-admin', 'manager', 'super-admin']}>
+              <RestaurantAdminDashboard />
+            </ProtectedRoute>
+          </CombinedGuard>
         }
       />
       <Route
@@ -249,6 +285,14 @@ export const AppRouter: React.FC = () => {
         }
       />
       <Route
+        path="/manager/"
+        element={
+          <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+            <RestaurantAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/manager/orders"
         element={
           <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
@@ -270,6 +314,16 @@ export const AppRouter: React.FC = () => {
           <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
             <RestaurantAdminDashboard />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager/rooms"
+        element={
+          <CombinedGuard feature={FEATURES.ROOMS} permission="rooms">
+            <ProtectedRoute allowedRoles={['manager', 'restaurant-admin', 'super-admin']}>
+              <RestaurantAdminDashboard />
+            </ProtectedRoute>
+          </CombinedGuard>
         }
       />
       <Route
@@ -305,6 +359,14 @@ export const AppRouter: React.FC = () => {
         }
       />
       <Route
+        path="/kitchen/"
+        element={
+          <ProtectedRoute allowedRoles={['kitchen-staff', 'manager', 'restaurant-admin', 'super-admin']}>
+            <KitchenDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/kitchen/availability"
         element={
           <ProtectedRoute allowedRoles={['kitchen-staff', 'manager', 'restaurant-admin', 'super-admin']}>
@@ -321,7 +383,23 @@ export const AppRouter: React.FC = () => {
         }
       />
       <Route
+        path="/waiter/"
+        element={
+          <ProtectedRoute allowedRoles={['waiter', 'manager', 'restaurant-admin', 'super-admin']}>
+            <WaiterDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/cashier"
+        element={
+          <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
+            <CashierDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cashier/"
         element={
           <ProtectedRoute allowedRoles={['cashier', 'manager', 'restaurant-admin', 'super-admin']}>
             <CashierDashboard />
@@ -354,6 +432,12 @@ export const AppRouter: React.FC = () => {
       <Route path="/customer/table/*" element={<CustomerMenu />} />
       <Route
         path="/customer/table/:tenantId/:tableId"
+        element={<CustomerMenu />}
+      />
+      <Route path="/customer/room" element={<CustomerMenu />} />
+      <Route path="/customer/room/*" element={<CustomerMenu />} />
+      <Route
+        path="/customer/room/:tenantId/:tableId"
         element={<CustomerMenu />}
       />
 

@@ -51,7 +51,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             } catch (e) {}
           }
 
-          const mockTenant: Tenant = {
+          let mockTenant: Tenant = {
             id: profile.tenantId,
             name: brandName,
             logoUrl: logoUrl,
@@ -63,13 +63,30 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               pwaTheme: { themeColor: '#e11d48', backgroundColor: '#000000' }
             },
             subscription: {
-              planId: 'growth',
+              planId: 'enterprise',
               status: 'active',
               currentPeriodEnd: new Date('2027-01-01'),
-              limits: { tablesPerRestaurant: 30, monthlyOrders: 5000 }
+              limits: { tablesPerRestaurant: 100, monthlyOrders: 50000 }
             },
             createdAt: new Date()
           };
+
+          if (cachedTenants) {
+            try {
+              const tenantsList = JSON.parse(cachedTenants);
+              const match = tenantsList.find((t: any) => t.id === profile.tenantId);
+              if (match) {
+                mockTenant = {
+                  ...mockTenant,
+                  ...match,
+                  subscription: {
+                    ...mockTenant.subscription,
+                    ...match.subscription
+                  }
+                };
+              }
+            } catch (e) {}
+          }
 
           if (active) {
             setTenant(mockTenant);
@@ -78,7 +95,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Read from active Firestore database
           const tenantRepo = new TenantRepository(db);
 
-          const tenantDoc = await tenantRepo.getById(profile.tenantId);
+          let tenantDoc = await tenantRepo.getById(profile.tenantId);
+          if (!tenantDoc) {
+            // Fallback: search the collection and fetch the first available tenant in the database
+            const { collection, getDocs } = await import('firebase/firestore');
+            const tenantsSnap = await getDocs(collection(db, 'tenants'));
+            if (!tenantsSnap.empty) {
+              const firstTenantDoc = tenantsSnap.docs[0];
+              tenantDoc = { id: firstTenantDoc.id, ...firstTenantDoc.data() } as Tenant;
+            }
+          }
+
           if (tenantDoc && active) {
             setTenant(tenantDoc);
           }

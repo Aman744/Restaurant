@@ -77,6 +77,9 @@ export class TableRepository implements ITableRepository {
     const colRef = collection(this.db, 'tenants', tenantId, 'tables').withConverter(TableConverter);
     return onSnapshot(colRef, (snap: any) => {
       callback(snap.docs.map((doc: any) => doc.data() as Table));
+    }, (err: any) => {
+      console.warn("Firestore tables subscription permission error:", err);
+      callback([]);
     });
   }
 }

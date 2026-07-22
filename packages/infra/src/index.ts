@@ -8,3 +8,7 @@ export * from './repositories/InventoryRepository.js';
 export * from './repositories/PaymentRepository.js';
 export * from './repositories/ReservationRepository.js';
 export * from './repositories/TableRepository.js';
+export * from './repositories/RoomRepository.js';
+export * from './repositories/RoomCategoryRepository.js';
+export * from './repositories/RoomReservationRepository.js';
+export * from './repositories/RoomStayRepository.js';

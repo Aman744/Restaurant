@@ -21,7 +21,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password?: string) => Promise<void>;
+  login: (email: string, password?: string, portalRole?: UserRole) => Promise<{ role: string; tenantId: string | null } | void>;
   signUp: (email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   isMockMode: boolean;
@@ -42,6 +42,38 @@ export const hashPassword = async (password: string): Promise<string> => {
   return hashHex;
 };
 
+// Helper mapper for RBAC permissions list
+function getPermissionsForRole(role: string): string[] {
+  switch (role) {
+    case 'super-admin':
+      return ['all'];
+    case 'restaurant-admin':
+      return ['dashboard', 'menu', 'tables', 'rooms', 'staff', 'reports', 'inventory', 'reservations', 'coupons', 'loyalty', 'settings'];
+    case 'manager':
+      return ['dashboard', 'orders', 'menu', 'tables', 'rooms', 'staff', 'reports', 'kitchen'];
+    case 'kitchen-staff':
+      return ['kds', 'order_status'];
+    case 'waiter':
+      return ['tables', 'requests', 'serve'];
+    case 'cashier':
+      return ['billing', 'payments', 'refunds', 'receipts'];
+    default:
+      return [];
+  }
+}
+
+// Helper mapper to infer user role from email prefix
+export function getRoleFromEmail(email: string): string | null {
+  const emailLower = email.toLowerCase().trim();
+  if (emailLower.startsWith('superadmin') || emailLower.includes('superadmin')) return 'super-admin';
+  if (emailLower.startsWith('admin')) return 'restaurant-admin';
+  if (emailLower.startsWith('manager') || emailLower.startsWith('money')) return 'manager';
+  if (emailLower.startsWith('kitchen') || emailLower.startsWith('kds') || emailLower.startsWith('chef') || emailLower.startsWith('cook')) return 'kitchen-staff';
+  if (emailLower.startsWith('waiter') || emailLower.startsWith('server') || emailLower.startsWith('staff')) return 'waiter';
+  if (emailLower.startsWith('cashier') || emailLower.startsWith('pos') || emailLower.startsWith('billing') || emailLower.startsWith('counter') || emailLower.startsWith('cash')) return 'cashier';
+  return null;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -59,9 +91,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           let currentRole = parsed.claims?.role || 'customer';
           if (parsed.email) {
-            const emailLower = parsed.email.toLowerCase();
-            if (emailLower.startsWith('superadmin') || emailLower.includes('superadmin')) {
-              currentRole = 'super-admin';
+            const inferred = getRoleFromEmail(parsed.email);
+            if (inferred) {
+              currentRole = inferred;
             }
           }
           const updatedClaims = {
@@ -97,37 +129,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isMockMode]);
 
-  const login = async (email: string, password = '') => {
+  const login = async (email: string, password = '', portalRole?: UserRole) => {
     setLoading(true);
     try {
+      localStorage.removeItem('impersonate_role');
+      localStorage.removeItem('impersonate_tenantId');
+      const emailLower = email.toLowerCase().trim();
+      let targetRole = getRoleFromEmail(emailLower);
+      if (!targetRole && portalRole) {
+        targetRole = portalRole;
+      }
+
       if (isMockMode) {
         // Retrieve credentials list
         const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
         const credentialsDb = rawDb ? JSON.parse(rawDb) : {};
 
         const hashedInput = await hashPassword(password);
-        const storedUser = credentialsDb[email.toLowerCase()];
+        const storedUser = credentialsDb[emailLower];
 
         // If not in database, check seed fallbacks for easier local test
         if (!storedUser) {
           if (password === 'Admin@123') {
-            let role = 'customer';
-            if (email.startsWith('superadmin') || email.includes('superadmin')) role = 'super-admin';
-            else if (email.startsWith('admin')) role = 'restaurant-admin';
-            else if (email.startsWith('manager')) role = 'manager';
-            else if (email.startsWith('kitchen')) role = 'kitchen-staff';
-            else if (email.startsWith('waiter')) role = 'waiter';
-            else if (email.startsWith('cashier')) role = 'cashier';
-
+            const role = targetRole || 'restaurant-admin';
             const mockClaims = {
               role,
               tenantId: role === 'super-admin' ? null : 'tenant_dev_123'
             };
 
             const mockUser = {
-              uid: `mock_uid_${email.split('@')[0]}`,
-              email,
-              displayName: email.split('@')[0].toUpperCase(),
+              uid: `mock_uid_${emailLower.split('@')[0]}`,
+              email: emailLower,
+              displayName: emailLower.split('@')[0].toUpperCase(),
               claims: mockClaims
             };
 
@@ -138,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               getIdTokenResult: async () => ({ claims: mockClaims })
             });
             localStorage.setItem(MOCK_USER_KEY, JSON.stringify(mockUser));
-            return;
+            return { role, tenantId: mockClaims.tenantId };
           }
           throw new Error('User not found. Please click "Create Account" first.');
         }
@@ -149,14 +182,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         let resolvedRole = storedUser.claims?.role || 'customer';
-        if (email.toLowerCase().startsWith('superadmin') || email.toLowerCase().includes('superadmin')) {
-          resolvedRole = 'super-admin';
+        let roleChanged = false;
+        if (targetRole && resolvedRole !== targetRole) {
+          resolvedRole = targetRole;
+          roleChanged = true;
         }
+
         const finalClaims = {
           ...storedUser.claims,
           role: resolvedRole,
           tenantId: resolvedRole === 'super-admin' ? null : (storedUser.claims?.tenantId || 'tenant_dev_123')
         };
+
+        if (roleChanged) {
+          storedUser.claims = finalClaims;
+          credentialsDb[emailLower] = storedUser;
+          localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
+        }
 
         setUser({
           uid: storedUser.uid,
@@ -168,6 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...storedUser,
           claims: finalClaims
         }));
+        return { role: resolvedRole, tenantId: finalClaims.tenantId };
       } else {
         // Real Firebase login
         const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -177,26 +220,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Uses merge:true — never overwrites existing real profile data.
         const userDocRef = doc(db, 'users', uid);
         const existing = await getDoc(userDocRef);
-        if (!existing.exists()) {
-          // Infer role from email prefix as a safe bootstrap default
-          // (the real role is set properly during account provisioning via Super Admin)
-          let inferredRole = 'restaurant-admin';
-          if (email.startsWith('superadmin') || email.includes('superadmin')) inferredRole = 'super-admin';
+        let userRole = 'restaurant-admin';
+        let tenantId: string | null = `tenant_${uid}`;
 
-          // Use the Firebase Auth UID as the stable tenantId.
-          // This guarantees menu items always land at /tenants/{uid}/... consistently.
-          const tenantId = inferredRole === 'super-admin' ? null : `tenant_${uid}`;
+        if (existing.exists()) {
+          const d = existing.data();
+          userRole = d.role || 'restaurant-admin';
+          tenantId = d.tenantId || `tenant_${uid}`;
+
+          // Auto-fix role in Firestore if there is a mismatch based on email prefix
+          if (targetRole && userRole !== targetRole) {
+            userRole = targetRole;
+            await setDoc(userDocRef, { 
+              role: userRole, 
+              permissions: getPermissionsForRole(userRole) 
+            }, { merge: true });
+          }
+        } else {
+          userRole = targetRole || 'restaurant-admin';
+          tenantId = userRole === 'super-admin' ? null : `tenant_${uid}`;
 
           await setDoc(userDocRef, {
             uid,
-            email: email.toLowerCase(),
-            displayName: credential.user.displayName || email.split('@')[0].toUpperCase(),
-            role: inferredRole,
+            email: emailLower,
+            displayName: credential.user.displayName || emailLower.split('@')[0].toUpperCase(),
+            role: userRole,
             tenantId,
-            permissions: inferredRole === 'super-admin' ? ['all'] : ['dashboard', 'menu', 'tables', 'staff'],
+            permissions: getPermissionsForRole(userRole),
             createdAt: new Date()
           }, { merge: true });
         }
+        return { role: userRole, tenantId };
       }
     } finally {
       setLoading(false);
@@ -264,6 +318,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setLoading(true);
     try {
+      localStorage.removeItem('impersonate_role');
+      localStorage.removeItem('impersonate_tenantId');
       if (isMockMode) {
         setUser(null);
         localStorage.removeItem(MOCK_USER_KEY);

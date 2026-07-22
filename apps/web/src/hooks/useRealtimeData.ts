@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase.js';
-import { OrderRepository, MenuRepository, TableRepository, UserRepository } from '@restaurant-qr/infra';
-import type { Order, MenuItem, Table, UserProfile } from '@restaurant-qr/core';
+import { OrderRepository, MenuRepository, TableRepository, UserRepository, RoomRepository, RoomCategoryRepository, RoomReservationRepository } from '@restaurant-qr/infra';
+import type { Order, MenuItem, Table, UserProfile, Room, RoomCategory, RoomReservation } from '@restaurant-qr/core';
+import { collection, addDoc } from 'firebase/firestore';
 
 function seedMockDataForTenant(tenantId: string) {
   // 1. Seed tables if empty
@@ -17,6 +18,154 @@ function seedMockDataForTenant(tenantId: string) {
     ];
     tablesList = [...tablesList, ...newTables];
     localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(tablesList));
+  }
+
+  // 1b. Seed Room Categories if empty
+  const storedCats = localStorage.getItem('restaurant_qr_mock_room_categories_db');
+  let catsList: any[] = storedCats ? JSON.parse(storedCats) : [];
+  let tenantCats = catsList.filter((c) => c.tenantId === tenantId);
+  const hasOldCategories = tenantCats.some(c => c.name === 'VIP Cabin' || c.name === 'Private Room' || c.name === 'Family Room' || c.name === 'Party Hall');
+  
+  if (tenantCats.length === 0 || hasOldCategories) {
+    // Deduplicate and filter out old ones
+    catsList = catsList.filter((c) => c.tenantId !== tenantId);
+    
+    const defaultCats = [
+      { id: `cat_${tenantId}_1`, tenantId, name: 'AC', isActive: true, createdAt: new Date() },
+      { id: `cat_${tenantId}_2`, tenantId, name: 'Non AC', isActive: true, createdAt: new Date() },
+      { id: `cat_${tenantId}_3`, tenantId, name: 'Tents', isActive: true, createdAt: new Date() }
+    ];
+
+    const finalCats: any[] = [];
+    const names = new Set<string>();
+    for (const cat of defaultCats) {
+      if (!names.has(cat.name.toLowerCase())) {
+        names.add(cat.name.toLowerCase());
+        finalCats.push(cat);
+      }
+    }
+
+    catsList = [...catsList, ...finalCats];
+    localStorage.setItem('restaurant_qr_mock_room_categories_db', JSON.stringify(catsList));
+    
+    // Update existing seeded rooms categories mapping
+    const storedRooms = localStorage.getItem('restaurant_qr_mock_rooms_db');
+    if (storedRooms) {
+      try {
+        const roomsList = JSON.parse(storedRooms);
+        roomsList.forEach((r: any) => {
+          if (r.tenantId === tenantId) {
+            if (r.categoryId === `cat_${tenantId}_1` || r.categoryId === `cat_${tenantId}_vip`) r.categoryId = `cat_${tenantId}_1`;
+            else if (r.categoryId === `cat_${tenantId}_2` || r.categoryId === `cat_${tenantId}_private`) r.categoryId = `cat_${tenantId}_2`;
+            else r.categoryId = `cat_${tenantId}_3`;
+          }
+        });
+        localStorage.setItem('restaurant_qr_mock_rooms_db', JSON.stringify(roomsList));
+      } catch (e) {}
+    }
+  }
+
+  // Clean up duplicate/incorrect Room 2 or Table E0B9 from localStorage
+  const checkRooms = localStorage.getItem('restaurant_qr_mock_rooms_db');
+  if (checkRooms) {
+    try {
+      let rooms = JSON.parse(checkRooms);
+      // Remove any old duplicate room
+      const oldLen = rooms.length;
+      rooms = rooms.filter((r: any) => r.id !== `room_tenant_b7c596c4ae5f439f_2`);
+      const matchIndex = rooms.findIndex((r: any) => r.id === 'room_e0b92d87f441');
+      if (matchIndex !== -1) {
+        rooms[matchIndex].roomNumber = '002';
+        rooms[matchIndex].roomName = 'Room 002';
+        rooms[matchIndex].capacity = 4;
+      }
+      if (rooms.length !== oldLen || matchIndex !== -1) {
+        localStorage.setItem('restaurant_qr_mock_rooms_db', JSON.stringify(rooms));
+      }
+    } catch (e) {}
+  }
+
+  const checkTables = localStorage.getItem('restaurant_qr_mock_tables_db');
+  if (checkTables) {
+    try {
+      let tables = JSON.parse(checkTables);
+      const oldLen = tables.length;
+      tables = tables.filter((t: any) => t.id !== 'room_e0b92d87f441' && t.number);
+      if (tables.length !== oldLen) {
+        localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(tables));
+      }
+    } catch (e) {}
+  }
+
+  // 1c. Seed Rooms if empty
+  const storedRooms = localStorage.getItem('restaurant_qr_mock_rooms_db');
+  let roomsList: any[] = storedRooms ? JSON.parse(storedRooms) : [];
+  const tenantRooms = roomsList.filter((r) => r.tenantId === tenantId);
+  if (tenantRooms.length === 0) {
+    const isSpecialTenant = tenantId === 'tenant_b7c596c4ae5f439f';
+    const defaultRooms = [
+      {
+        id: `room_${tenantId}_1`,
+        tenantId,
+        branchId: 'main',
+        roomNumber: '101',
+        roomName: 'VIP Royal Lounge',
+        categoryId: `cat_${tenantId}_1`,
+        floor: 1,
+        zone: 'North Wing',
+        capacity: 8,
+        billingMode: 'MINIMUM_SPEND',
+        minimumSpend: 5000,
+        status: 'reserved',
+        qr: { id: `qr_${tenantId}_r1`, url: `${window.location.origin}/#/customer/room/${tenantId}/room_${tenantId}_1`, version: 1, generatedAt: new Date(), enabled: true },
+        features: ['AC', 'TV', 'Music', 'Non-Smoking'],
+        createdAt: new Date()
+      },
+      {
+        id: isSpecialTenant ? 'room_e0b92d87f441' : `room_${tenantId}_2`,
+        tenantId,
+        branchId: 'main',
+        roomNumber: '002',
+        roomName: 'Room 002',
+        categoryId: `cat_${tenantId}_3`,
+        floor: 1,
+        zone: 'East Wing',
+        capacity: 4,
+        billingMode: 'HOURLY',
+        hourlyRate: 500,
+        status: 'available',
+        qr: { id: `qr_${tenantId}_r2`, url: `${window.location.origin}/#/customer/room/${tenantId}/${isSpecialTenant ? 'room_e0b92d87f441' : `room_${tenantId}_2`}`, version: 1, generatedAt: new Date(), enabled: true },
+        features: ['AC', 'TV', 'Non-Smoking', 'Wheelchair Accessible'],
+        createdAt: new Date()
+      }
+    ];
+    roomsList = [...roomsList, ...defaultRooms];
+    localStorage.setItem('restaurant_qr_mock_rooms_db', JSON.stringify(roomsList));
+  }
+
+  // 1d. Seed Reservations if empty
+  const storedReservations = localStorage.getItem('restaurant_qr_mock_reservations_db');
+  let resList: any[] = storedReservations ? JSON.parse(storedReservations) : [];
+  const tenantRes = resList.filter((r) => r.tenantId === tenantId);
+  if (tenantRes.length === 0) {
+    const defaultRes = [
+      {
+        id: `res_${tenantId}_1`,
+        reservationNumber: 'RES-20260722-0024',
+        tenantId,
+        branchId: 'main',
+        roomId: `room_${tenantId}_1`,
+        reservationName: 'Vikram Malhotra',
+        phone: '+91 98765 00123',
+        guestsCount: 5,
+        startTime: new Date(Date.now() + 60 * 60000), // In 1 hour
+        endTime: new Date(Date.now() + 180 * 60000), // In 3 hours
+        status: 'reserved',
+        createdAt: new Date()
+      }
+    ];
+    resList = [...resList, ...defaultRes];
+    localStorage.setItem('restaurant_qr_mock_reservations_db', JSON.stringify(resList));
   }
 
   // 2. Seed menu items if empty
@@ -336,4 +485,165 @@ export function useStaff(tenantId: string, isMockMode: boolean) {
   }, [tenantId, isMockMode]);
 
   return { staff, loading };
+}
+
+export function useRooms(tenantId: string, isMockMode: boolean) {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+
+    if (isMockMode) {
+      seedMockDataForTenant(tenantId);
+      const syncMock = () => {
+        const stored = localStorage.getItem('restaurant_qr_mock_rooms_db');
+        if (stored && active) {
+          try {
+            const all: Room[] = JSON.parse(stored);
+            setRooms(all.filter((r) => r.tenantId === tenantId));
+          } catch (e) {}
+        }
+        setLoading(false);
+      };
+      syncMock();
+      const interval = setInterval(syncMock, 2000);
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    } else {
+      const repo = new RoomRepository(db);
+      const unsubscribe = repo.subscribeRooms(tenantId, (data) => {
+        if (active) {
+          setRooms(data);
+          setLoading(false);
+        }
+      });
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    }
+  }, [tenantId, isMockMode]);
+
+  return { rooms, loading };
+}
+
+export function useRoomCategories(tenantId: string, isMockMode: boolean) {
+  const [categories, setCategories] = useState<RoomCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+
+    if (isMockMode) {
+      seedMockDataForTenant(tenantId);
+      const syncMock = () => {
+        const stored = localStorage.getItem('restaurant_qr_mock_room_categories_db');
+        if (stored && active) {
+          try {
+            const all: RoomCategory[] = JSON.parse(stored);
+            setCategories(all.filter((c) => c.tenantId === tenantId));
+          } catch (e) {}
+        }
+        setLoading(false);
+      };
+      syncMock();
+      const interval = setInterval(syncMock, 2000);
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    } else {
+      const repo = new RoomCategoryRepository(db);
+      const load = async () => {
+        try {
+          let list = await repo.listAll(tenantId);
+          if (list.length === 0) {
+            const defaultCats = [
+              { tenantId, name: 'AC', isActive: true, createdAt: new Date(), updatedAt: new Date() },
+              { tenantId, name: 'Non AC', isActive: true, createdAt: new Date(), updatedAt: new Date() },
+              { tenantId, name: 'Tents', isActive: true, createdAt: new Date(), updatedAt: new Date() }
+            ];
+            for (const cat of defaultCats) {
+              const currentList = await repo.listAll(tenantId);
+              const exists = currentList.some((c) => c.name.toLowerCase() === cat.name.toLowerCase());
+              if (!exists) {
+                await addDoc(collection(db, 'tenants', tenantId, 'room_categories'), cat);
+              }
+            }
+            list = await repo.listAll(tenantId);
+          }
+          if (active) {
+            setCategories(list);
+            setLoading(false);
+          }
+        } catch (e) {
+          console.warn('Failed to load categories:', e);
+          if (active) setLoading(false);
+        }
+      };
+      load();
+    }
+  }, [tenantId, isMockMode]);
+
+  // De-duplicate categories array by name to guarantee visual uniqueness in dropdown list
+  const uniqueCategories: RoomCategory[] = [];
+  const seenNames = new Set<string>();
+  for (const cat of categories) {
+    const nameLower = cat.name.trim().toLowerCase();
+    if (!seenNames.has(nameLower)) {
+      seenNames.add(nameLower);
+      uniqueCategories.push(cat);
+    }
+  }
+
+  return { categories: uniqueCategories, loading };
+}
+
+export function useRoomReservations(tenantId: string, roomId: string, isMockMode: boolean) {
+  const [reservations, setReservations] = useState<RoomReservation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId || !roomId) return;
+    let active = true;
+
+    if (isMockMode) {
+      seedMockDataForTenant(tenantId);
+      const syncMock = () => {
+        const stored = localStorage.getItem('restaurant_qr_mock_reservations_db');
+        if (stored && active) {
+          try {
+            const all: RoomReservation[] = JSON.parse(stored);
+            setReservations(all.filter((r) => r.tenantId === tenantId && r.roomId === roomId));
+          } catch (e) {}
+        }
+        setLoading(false);
+      };
+      syncMock();
+      const interval = setInterval(syncMock, 2000);
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    } else {
+      const repo = new RoomReservationRepository(db);
+      const unsubscribe = repo.subscribeReservations(tenantId, roomId, (data: RoomReservation[]) => {
+        if (active) {
+          setReservations(data);
+          setLoading(false);
+        }
+      });
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    }
+  }, [tenantId, roomId, isMockMode]);
+
+  return { reservations, loading };
 }

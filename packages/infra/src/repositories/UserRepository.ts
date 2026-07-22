@@ -60,6 +60,9 @@ export class UserRepository implements IUserRepository {
     const colRef = collection(this.db, 'tenants', tenantId, 'users').withConverter(UserConverter);
     return onSnapshot(colRef, (snap: any) => {
       callback(snap.docs.map((doc: any) => doc.data() as UserProfile));
+    }, (err: any) => {
+      console.warn("Firestore tenant users subscription permission error:", err);
+      callback([]);
     });
   }
 }

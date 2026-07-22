@@ -13,6 +13,7 @@ export interface Tenant extends AuditFields {
   name: string;
   domain?: string;
   logoUrl?: string;
+  features?: Record<string, boolean>;
   theme: {
     primaryColor: string;
     secondaryColor: string;
@@ -113,6 +114,22 @@ export interface MenuCategory extends AuditFields {
   isActive: boolean;
 }
 
+// Central SaaS Feature Keys Registry
+export const FEATURES = {
+  TABLES: 'tables',
+  ROOMS: 'rooms',
+  INVENTORY: 'inventory',
+  KITCHEN: 'kitchen',
+  WAITER: 'waiter',
+  CASHIER: 'cashier',
+  ANALYTICS: 'analytics',
+  LOYALTY: 'loyalty',
+  API: 'api',
+  MULTI_BRANCH: 'multiBranch'
+} as const;
+
+export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];
+
 export interface Table extends AuditFields {
   id: string;
   tenantId: string;
@@ -123,6 +140,93 @@ export interface Table extends AuditFields {
   activeSessionId?: string;
   activeOrderId?: string;
   createdAt: Date;
+}
+
+export type RoomBillingMode = 'FREE' | 'MINIMUM_SPEND' | 'HOURLY' | 'FIXED' | 'PACKAGE';
+
+export type RoomStatus =
+  | 'available'
+  | 'reserved'
+  | 'checked-in'
+  | 'occupied'
+  | 'bill-open'
+  | 'checkout'
+  | 'cleaning'
+  | 'inspection'
+  | 'maintenance';
+
+export type RoomFeature =
+  | 'AC'
+  | 'TV'
+  | 'Projector'
+  | 'Music'
+  | 'Smoking'
+  | 'Non-Smoking'
+  | 'Wheelchair Accessible';
+
+export interface RoomCategory extends AuditFields {
+  id: string;
+  tenantId: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface Room extends AuditFields {
+  id: string;
+  tenantId: string;
+  branchId?: string;
+  roomNumber: string;
+  roomName: string;
+  categoryId?: string;
+  floor?: number;
+  zone?: string;
+  capacity: number;
+  billingMode: RoomBillingMode;
+  basePrice?: number;
+  hourlyRate?: number;
+  minimumSpend?: number;
+  taxProfileId?: string;
+  serviceCharge?: number;
+  status: RoomStatus;
+  activeOrderId?: string;
+  activeStayId?: string;
+  qr: {
+    id: string;
+    url: string;
+    version: number;
+    generatedAt: Date;
+    expiresAt?: Date;
+    enabled: boolean;
+  };
+  features: RoomFeature[];
+  notes?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface RoomReservation extends AuditFields {
+  id: string;
+  reservationNumber: string;
+  tenantId: string;
+  branchId?: string;
+  roomId: string;
+  reservationName: string;
+  phone: string;
+  guestsCount: number;
+  startTime: Date;
+  endTime: Date;
+  status: 'reserved' | 'checked-in' | 'completed' | 'cancelled';
+  notes?: string;
+  createdAt: Date;
+}
+
+export interface ServiceLocation {
+  id: string;
+  type: 'table' | 'room' | 'bar-seat' | 'counter' | 'pickup' | string;
+  referenceId: string;
+  name: string;
+  branchId?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface TableSession extends AuditFields {
@@ -170,6 +274,7 @@ export interface Order extends AuditFields {
   tenantId: string;
   tableId: string;
   tableNumber: string;
+  serviceLocation?: ServiceLocation;
   sessionId?: string;
   customerId: string;
   customerName?: string;
@@ -337,4 +442,79 @@ export interface AuditLogEntry {
   ipAddress?: string;
   userAgent?: string;
   details: string;
+}
+
+export interface RoomStay {
+  id: string;
+  roomId: string;
+  roomNumber: string;
+  roomName: string;
+  checkInDate: string;
+  checkInTime: string;
+  checkOutDate?: string;
+  checkOutTime?: string;
+  status: 'reserved' | 'arrived' | 'checked-in' | 'ordering' | 'payment-pending' | 'checked-out' | 'cancelled' | 'expired';
+  orderIds: string[];
+  paymentIds: string[];
+  invoiceId?: string;
+  timeline: RoomTimelineEvent[];
+  createdAt: Date;
+  createdBy: 'customer' | 'staff';
+  guestName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  guestsCount?: number;
+  purpose?: string | null;
+  notes?: string | null;
+}
+
+export interface RoomTimelineEvent {
+  id: string;
+  timestamp: string;
+  action: 'CHECK_IN' | 'JOIN_REQUEST' | 'JOIN_APPROVED' | 'JOIN_REJECTED' | 'MENU_OPENED' | 'ORDER_PLACED' | 'ORDER_CANCELLED' | 'CHECKOUT_REQUEST' | 'PAYMENT' | 'CHECKOUT' | 'HOUSEKEEPING_ASSIGNED' | 'HOUSEKEEPING_STARTED' | 'HOUSEKEEPING_COMPLETED' | 'INSPECTION_APPROVED' | 'ROOM_AVAILABLE';
+  actor: 'customer' | 'staff' | 'system';
+  metadata?: any;
+}
+
+export interface StayGuest {
+  id: string;
+  stayId: string;
+  name: string;
+  phone: string;
+  email?: string;
+  role: 'Primary' | 'Guest';
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Removed';
+  joinedAt: Date;
+  sessionToken: string;
+}
+
+export interface HousekeepingTask {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  roomNumber: string;
+  roomName: string;
+  status: 'pending' | 'assigned' | 'in-progress' | 'completed' | 'verified' | 'closed';
+  assignedTo?: string;
+  assignedStaffName?: string;
+  createdAt: Date;
+  completedAt?: Date;
+  taskType?: 'cleaning' | 'laundry' | 'amenity' | 'concierge' | 'wellness' | 'convenience' | 'waiter' | 'other';
+  notes?: string;
+}
+
+export interface RoomFeedback {
+  id: string;
+  tenantId: string;
+  stayId: string;
+  roomId: string;
+  roomNumber: string;
+  guestName: string;
+  ratings: {
+    room: number;
+    food: number;
+    service: number;
+  };
+  comment?: string;
+  createdAt: Date;
 }

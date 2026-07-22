@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc } from 'firebase/firestore';
 import { db } from './lib/firebase.js';
 import { HashRouter as Router } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import { AuthProvider } from './features/auth/context/AuthContext';
 import { UserProvider } from './features/auth/context/UserContext';
 import { TenantProvider } from './features/auth/context/TenantContext';
 import { PermissionProvider } from './features/auth/context/PermissionContext';
+import { ThemeContextProvider } from './features/auth/context/ThemeContext';
 import { AppRouter } from './app/router';
 import { ToastProvider } from './components/shared/ToastContext';
 import { ConfirmProvider } from './components/shared/ConfirmContext';
@@ -20,18 +21,39 @@ const queryClient = new QueryClient({
   },
 });
 
+import { onSnapshot } from 'firebase/firestore';
+
 function App() {
   useEffect(() => {
     let active = true;
     
-    const applySystemSettings = async () => {
-      let defaultTheme = 'dark';
-      let primaryColor = '#10b981';
-      let fontFamily = 'Inter';
+    const updateThemeStyles = (themeMode: string, primaryCol: string, fontFam: string) => {
+      const root = document.documentElement;
+      
+      // Override with user's local manual theme selection if present, else follow system theme
+      const savedMode = localStorage.getItem('color-mode');
+      const themeToApply = savedMode || themeMode;
+      
+      if (themeToApply === 'light') {
+        root.classList.add('light');
+        root.classList.remove('dark');
+      } else {
+        root.classList.add('dark');
+        root.classList.remove('light');
+      }
 
-      const isMockMode = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'your_api_key_here';
+      root.style.setProperty('--primary-color', primaryCol);
+      root.style.setProperty('--font-family', fontFam);
+    };
 
-      if (isMockMode) {
+    let unsubscribe: () => void = () => {};
+    const isMockMode = !import.meta.env.VITE_FIREBASE_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY === 'your_api_key_here';
+
+    if (isMockMode) {
+      const syncTheme = () => {
+        let defaultTheme = 'dark';
+        let primaryColor = '#10b981';
+        let fontFamily = 'Inter';
         const cachedWhiteLabel = localStorage.getItem('restaurant_qr_system_whitelabel');
         if (cachedWhiteLabel) {
           try {
@@ -41,68 +63,64 @@ function App() {
             fontFamily = parsed.fontFamily || fontFamily;
           } catch (e) {}
         }
-      } else {
-        try {
-          const docRef = doc(db, 'system_settings', 'general');
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data.whiteLabelConfig) {
-              defaultTheme = data.whiteLabelConfig.defaultTheme || defaultTheme;
-              primaryColor = data.whiteLabelConfig.primaryColor || primaryColor;
-              fontFamily = data.whiteLabelConfig.fontFamily || fontFamily;
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to load system theme settings, falling back to local defaults:', e);
-          const cachedWhiteLabel = localStorage.getItem('restaurant_qr_system_whitelabel');
-          if (cachedWhiteLabel) {
-            try {
-              const parsed = JSON.parse(cachedWhiteLabel);
-              defaultTheme = parsed.defaultTheme || defaultTheme;
-              primaryColor = parsed.primaryColor || primaryColor;
-              fontFamily = parsed.fontFamily || fontFamily;
-            } catch (err) {}
-          }
+        if (active) {
+          updateThemeStyles(defaultTheme, primaryColor, fontFamily);
         }
-      }
+      };
 
-      if (active) {
-        const root = document.documentElement;
-        if (defaultTheme === 'light') {
-          root.classList.add('light');
-          root.classList.remove('dark');
-        } else {
-          root.classList.add('dark');
-          root.classList.remove('light');
+      syncTheme();
+      window.addEventListener('storage', syncTheme);
+      const interval = setInterval(syncTheme, 1500);
+
+      unsubscribe = () => {
+        window.removeEventListener('storage', syncTheme);
+        clearInterval(interval);
+      };
+    } else {
+      const docRef = doc(db, 'system_settings', 'general');
+      unsubscribe = onSnapshot(docRef, (snap: any) => {
+        if (snap.exists() && active) {
+          const data = snap.data();
+          let defaultTheme = 'dark';
+          let primaryColor = '#10b981';
+          let fontFamily = 'Inter';
+          if (data.whiteLabelConfig) {
+            defaultTheme = data.whiteLabelConfig.defaultTheme || defaultTheme;
+            primaryColor = data.whiteLabelConfig.primaryColor || primaryColor;
+            fontFamily = data.whiteLabelConfig.fontFamily || fontFamily;
+          }
+          updateThemeStyles(defaultTheme, primaryColor, fontFamily);
         }
+      }, (err: any) => {
+        console.warn('Theme listener failed, falling back:', err);
+      });
+    }
 
-        root.style.setProperty('--primary-color', primaryColor);
-        root.style.setProperty('--font-family', fontFamily);
-      }
+    return () => {
+      active = false;
+      unsubscribe();
     };
-
-    applySystemSettings();
-    return () => { active = false; };
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
-          <UserProvider>
-            <TenantProvider>
-              <PermissionProvider>
-                <ToastProvider>
-                  <ConfirmProvider>
-                    <AppRouter />
-                  </ConfirmProvider>
-                </ToastProvider>
-              </PermissionProvider>
-            </TenantProvider>
-          </UserProvider>
-        </AuthProvider>
-      </Router>
+      <ThemeContextProvider>
+        <Router>
+          <AuthProvider>
+            <UserProvider>
+              <TenantProvider>
+                <PermissionProvider>
+                  <ToastProvider>
+                    <ConfirmProvider>
+                      <AppRouter />
+                    </ConfirmProvider>
+                  </ToastProvider>
+                </PermissionProvider>
+              </TenantProvider>
+            </UserProvider>
+          </AuthProvider>
+        </Router>
+      </ThemeContextProvider>
     </QueryClientProvider>
   );
 }

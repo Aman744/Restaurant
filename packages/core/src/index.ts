@@ -8,3 +8,6 @@ export * from './ports/IInventoryRepository.js';
 export * from './ports/IPaymentRepository.js';
 export * from './ports/IReservationRepository.js';
 export * from './ports/ITableRepository.js';
+export * from './ports/IRoomRepository.js';
+export * from './ports/IRoomCategoryRepository.js';
+export * from './ports/IRoomReservationRepository.js';

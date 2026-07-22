@@ -46,12 +46,24 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // 1. Fetch claims from ID token
+        // 1. In production/live Firestore mode, query the users collection first to ensure the role matches Firestore
+        if (!isMockMode) {
+          const userRepo = new UserRepository(db);
+          const dbProfile = await userRepo.getById(user.uid);
+          if (dbProfile && active) {
+            const defaultPerms = getPermissionsForRole(dbProfile.role);
+            dbProfile.permissions = Array.from(new Set([...(dbProfile.permissions || []), ...defaultPerms]));
+            setProfile(dbProfile);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // 2. Fallback: Fetch claims from ID token (crucial for mock mode role simulation)
         const tokenResult = await user.getIdTokenResult();
         const claims = tokenResult.claims;
 
         if (claims.role && active) {
-          // Resolve directly from claims
           setProfile({
             uid: user.uid,
             email: user.email || '',
@@ -63,19 +75,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           setLoading(false);
           return;
-        }
-
-        // 2. If claims missing, query Firestore /users/{uid}
-        if (!isMockMode) {
-          const userRepo = new UserRepository(db);
-          const dbProfile = await userRepo.getById(user.uid);
-          if (dbProfile && active) {
-            const defaultPerms = getPermissionsForRole(dbProfile.role);
-            dbProfile.permissions = Array.from(new Set([...(dbProfile.permissions || []), ...defaultPerms]));
-            setProfile(dbProfile);
-            setLoading(false);
-            return;
-          }
         }
 
         // 3. Fallback/Access Denied (If claims are missing and no Firestore doc exists)
@@ -120,9 +119,9 @@ function getPermissionsForRole(role: UserRole): string[] {
     case 'super-admin':
       return ['all'];
     case 'restaurant-admin':
-      return ['dashboard', 'menu', 'tables', 'staff', 'reports', 'inventory', 'reservations', 'coupons', 'loyalty', 'settings'];
+      return ['dashboard', 'menu', 'tables', 'rooms', 'staff', 'reports', 'inventory', 'reservations', 'coupons', 'loyalty', 'settings'];
     case 'manager':
-      return ['dashboard', 'orders', 'menu', 'tables', 'staff', 'reports', 'kitchen'];
+      return ['dashboard', 'orders', 'menu', 'tables', 'rooms', 'staff', 'reports', 'kitchen'];
     case 'kitchen-staff':
       return ['kds', 'order_status'];
     case 'waiter':

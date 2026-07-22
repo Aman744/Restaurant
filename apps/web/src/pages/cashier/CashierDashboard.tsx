@@ -439,6 +439,139 @@ export const CashierDashboard: React.FC = () => {
     </div>
   );
 
+  const renderBillCard = (b: BillTicket) => (
+    <div
+      key={b.id}
+      onClick={() => setSelectedBill(b)}
+      className={`border p-5 rounded-3xl cursor-pointer transition-all flex flex-col justify-between space-y-3 shadow-lg ${
+        selectedBill?.id === b.id
+          ? 'border-emerald-500 bg-emerald-500/10 shadow-emerald-500/10'
+          : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/30'
+      }`}
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-xl">
+              {b.tableNumber}
+            </span>
+            <h4 className="font-extrabold text-sm text-white">#{b.id.slice(-6).toUpperCase()}</h4>
+          </div>
+          <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+            <Clock className="h-3 w-3 text-zinc-500" />
+            {formatOrderDateTime(b.rawOrder.createdAt)}
+          </p>
+        </div>
+        {(b.rawOrder as any).requestedBillAt ? (
+          <span className="text-[9px] uppercase tracking-wider font-black px-2.5 py-1 rounded-xl border bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse flex items-center gap-1">
+            <Bell className="h-3 w-3" /> WAITER BILL REQUEST
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+            {b.itemsCount} items
+          </span>
+        )}
+      </div>
+
+      {/* Itemized Dishes List on Card */}
+      <div className="space-y-1 my-2 text-xs border-y border-zinc-900/80 py-2.5 max-h-28 overflow-y-auto pr-1">
+        {(b.rawOrder.items || []).map((item) => (
+          <div key={item.id} className="flex justify-between items-center text-zinc-300">
+            <span className="font-semibold text-xs">{item.quantity}x {item.name}</span>
+            <span className="text-[10px] font-bold text-zinc-400">
+              {currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
+            </span>
+          </div>
+        ))}
+        {(!b.rawOrder.items || b.rawOrder.items.length === 0) && (
+          <p className="text-[10px] text-zinc-500 italic">No items attached</p>
+        )}
+      </div>
+
+      <div className="flex justify-between items-end pt-1">
+        <span className="text-xs text-zinc-400 font-medium">Grand Total:</span>
+        <span className="text-xl font-black text-emerald-400">{currencySymbol}{b.total.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+
+  const renderSettledOrderCard = (o: Order) => (
+    <div
+      key={`settled_${o.id}`}
+      className="border border-zinc-850 bg-zinc-900/40 p-5 rounded-3xl space-y-4 opacity-80 hover:opacity-100 transition duration-200"
+    >
+      <div className="flex justify-between items-start border-b border-zinc-850 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-extrabold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-xl">
+              {o.tableNumber || `Table ${o.tableId || '1'}`}
+            </span>
+            <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
+          </div>
+          <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
+            <Clock className="h-3 w-3 text-zinc-500" />
+            Settled: {formatOrderDateTime(o.updatedAt || o.createdAt)}
+          </p>
+        </div>
+        <span className="text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+          PAID ({o.payment?.method || 'CASH'})
+        </span>
+      </div>
+
+      <div className="space-y-1 text-xs">
+        {(o.items || []).map((item) => (
+          <div key={item.id} className="flex justify-between items-center text-zinc-300">
+            <span>{item.quantity}x {item.name}</span>
+            <span className="text-[10px] font-bold text-zinc-400">₹{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="pt-3 border-t border-zinc-850 flex justify-between items-center text-xs">
+        <span className="text-emerald-400 font-extrabold text-sm">Total: ₹{(o.totals?.grandTotal || 0).toFixed(2)}</span>
+        <button
+          onClick={() => setReceiptModalOrder(o)}
+          className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-750 px-3 py-1.5 rounded-xl transition cursor-pointer"
+        >
+          <Printer className="h-3.5 w-3.5" />
+          View / Download Invoice
+        </button>
+      </div>
+    </div>
+  );
+
+  const diningTableBills = pendingBills.filter((b) => {
+    const isRoom = b.rawOrder.tableId?.startsWith('room_') || 
+                   b.tableNumber?.toLowerCase().includes('room') || 
+                   Boolean((b.rawOrder as any).roomNumber) || 
+                   Boolean((b.rawOrder as any).roomName);
+    return !isRoom;
+  });
+
+  const roomBills = pendingBills.filter((b) => {
+    const isRoom = b.rawOrder.tableId?.startsWith('room_') || 
+                   b.tableNumber?.toLowerCase().includes('room') || 
+                   Boolean((b.rawOrder as any).roomNumber) || 
+                   Boolean((b.rawOrder as any).roomName);
+    return isRoom;
+  });
+
+  const settledDiningOrders = sortedSettledOrders.filter((o) => {
+    const isRoom = o.tableId?.startsWith('room_') || 
+                   o.tableNumber?.toLowerCase().includes('room') || 
+                   Boolean((o as any).roomNumber) || 
+                   Boolean((o as any).roomName);
+    return !isRoom;
+  });
+
+  const settledRoomOrders = sortedSettledOrders.filter((o) => {
+    const isRoom = o.tableId?.startsWith('room_') || 
+                   o.tableNumber?.toLowerCase().includes('room') || 
+                   Boolean((o as any).roomNumber) || 
+                   Boolean((o as any).roomName);
+    return isRoom;
+  });
+
   if (loading) {
     return (
       <DashboardLayout title="Cashier Billing & POS" sidebarItems={sidebarItems}>
@@ -457,15 +590,15 @@ export const CashierDashboard: React.FC = () => {
       <div className="space-y-8 animate-fadeIn">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Active Pending Bills */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-6">
             <div className="flex justify-between items-center border-b border-zinc-900 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl">
                   <CreditCard className="h-4.5 w-4.5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Pending Table Settlements</h3>
-                  <p className="text-xs text-zinc-500">Unpaid table invoices awaiting cashier settlement</p>
+                  <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">Pending Settlements</h3>
+                  <p className="text-xs text-zinc-500">Unpaid invoices awaiting cashier settlement</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -491,70 +624,38 @@ export const CashierDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pendingBills.map((b) => (
-                <div
-                  key={b.id}
-                  onClick={() => setSelectedBill(b)}
-                  className={`border p-5 rounded-3xl cursor-pointer transition-all flex flex-col justify-between space-y-3 shadow-lg ${
-                    selectedBill?.id === b.id
-                      ? 'border-emerald-500 bg-emerald-500/10 shadow-emerald-500/10'
-                      : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/30'
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded-xl">
-                          {b.tableNumber}
-                        </span>
-                        <h4 className="font-extrabold text-sm text-white">#{b.id.slice(-6).toUpperCase()}</h4>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-zinc-500" />
-                        {formatOrderDateTime(b.rawOrder.createdAt)}
-                      </p>
-                    </div>
-                    {(b.rawOrder as any).requestedBillAt ? (
-                      <span className="text-[9px] uppercase tracking-wider font-black px-2.5 py-1 rounded-xl border bg-amber-500/20 text-amber-400 border-amber-500/30 animate-pulse flex items-center gap-1">
-                        <Bell className="h-3 w-3" /> WAITER BILL REQUEST
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                        {b.itemsCount} items
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Itemized Dishes List on Card */}
-                  <div className="space-y-1 my-2 text-xs border-y border-zinc-900/80 py-2.5 max-h-28 overflow-y-auto pr-1">
-                    {(b.rawOrder.items || []).map((item) => (
-                      <div key={item.id} className="flex justify-between items-center text-zinc-300">
-                        <span className="font-semibold text-xs">{item.quantity}x {item.name}</span>
-                        <span className="text-[10px] font-bold text-zinc-400">
-                          {currencySymbol}{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                    {(!b.rawOrder.items || b.rawOrder.items.length === 0) && (
-                      <p className="text-[10px] text-zinc-500 italic">No items attached</p>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between items-end pt-1">
-                    <span className="text-xs text-zinc-400 font-medium">Grand Total:</span>
-                    <span className="text-xl font-black text-emerald-400">{currencySymbol}{b.total.toFixed(2)}</span>
-                  </div>
+            <div className="space-y-6">
+              {/* Dining Tables Settlements */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-zinc-900/60 pb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Dining Tables Settlements ({diningTableBills.length})</span>
                 </div>
-              ))}
+                {diningTableBills.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {diningTableBills.map((b) => renderBillCard(b))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-zinc-850 bg-zinc-950/20 py-8 text-center text-zinc-500 rounded-3xl">
+                    <p className="text-xs font-medium text-zinc-500">No pending dining table settlements</p>
+                  </div>
+                )}
+              </div>
 
-              {pendingBills.length === 0 && (
-                <div className="col-span-full border border-dashed border-zinc-850 bg-zinc-950 py-16 text-center text-zinc-500 rounded-3xl">
-                  <CheckCircle className="h-10 w-10 mx-auto text-emerald-500/20 mb-3" />
-                  <p className="text-sm font-semibold text-zinc-300">All table invoices settled!</p>
-                  <p className="text-xs text-zinc-500 mt-1">Pending orders sent by waiters will appear here automatically</p>
+              {/* Rooms & Suites Settlements */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-zinc-900/60 pb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Rooms & Suites Settlements ({roomBills.length})</span>
                 </div>
-              )}
+                {roomBills.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {roomBills.map((b) => renderBillCard(b))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-zinc-850 bg-zinc-950/20 py-8 text-center text-zinc-500 rounded-3xl">
+                    <p className="text-xs font-medium text-zinc-500">No pending room settlements</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -603,51 +704,38 @@ export const CashierDashboard: React.FC = () => {
           </div>
 
           {sortedSettledOrders.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedSettledOrders.map((o) => (
-                <div
-                  key={`settled_${o.id}`}
-                  className="border border-zinc-850 bg-zinc-900/40 p-5 rounded-3xl space-y-4 opacity-80 hover:opacity-100 transition duration-200"
-                >
-                  <div className="flex justify-between items-start border-b border-zinc-850 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-extrabold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-xl">
-                          {o.tableNumber || `Table ${o.tableId || '1'}`}
-                        </span>
-                        <span className="text-sm font-bold text-white">#{o.id.slice(-6).toUpperCase()}</span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 mt-1 font-mono flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-zinc-500" />
-                        Settled: {formatOrderDateTime(o.updatedAt || o.createdAt)}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-extrabold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                      PAID ({o.payment?.method || 'CASH'})
-                    </span>
-                  </div>
-
-                  <div className="space-y-1 text-xs">
-                    {(o.items || []).map((item) => (
-                      <div key={item.id} className="flex justify-between items-center text-zinc-300">
-                        <span>{item.quantity}x {item.name}</span>
-                        <span className="text-[10px] font-bold text-zinc-400">₹{(item.totalPrice || item.unitPrice * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="pt-3 border-t border-zinc-850 flex justify-between items-center text-xs">
-                    <span className="text-emerald-400 font-extrabold text-sm">Total: ₹{(o.totals?.grandTotal || 0).toFixed(2)}</span>
-                    <button
-                      onClick={() => setReceiptModalOrder(o)}
-                      className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-750 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                    >
-                      <Printer className="h-3.5 w-3.5" />
-                      View / Download Invoice
-                    </button>
-                  </div>
+            <div className="space-y-8">
+              {/* Settled Dining Tables Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-zinc-900/60 pb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Dining Tables Settlements ({settledDiningOrders.length})</span>
                 </div>
-              ))}
+                {settledDiningOrders.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {settledDiningOrders.map((o) => renderSettledOrderCard(o))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-zinc-850 bg-zinc-950/20 py-8 text-center text-zinc-500 rounded-3xl">
+                    <p className="text-xs font-medium text-zinc-500">No settled dining table invoices yet</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Settled Rooms & Suites Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-zinc-900/60 pb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-400">Rooms & Suites Settlements ({settledRoomOrders.length})</span>
+                </div>
+                {settledRoomOrders.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {settledRoomOrders.map((o) => renderSettledOrderCard(o))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-zinc-850 bg-zinc-950/20 py-8 text-center text-zinc-500 rounded-3xl">
+                    <p className="text-xs font-medium text-zinc-500">No settled room invoices yet</p>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">

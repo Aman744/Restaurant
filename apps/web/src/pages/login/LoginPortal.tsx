@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
+import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import type { UserRole } from '@restaurant-qr/core';
 import { ChefHat, CreditCard, ShieldCheck, Store, UserCheck, Utensils, Lock, Mail, Eye, EyeOff, UserPlus } from 'lucide-react';
 
 export const LoginPortal: React.FC = () => {
-  const { login, signUp } = useAuth();
+  const { login, signUp, isMockMode } = useAuth();
+  const { profile } = useUserProfile();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -28,7 +30,7 @@ export const LoginPortal: React.FC = () => {
 
   if (path.startsWith('/super-admin')) {
     role = 'super-admin';
-    title = 'Super Admin SaaS Platform';
+    title = 'Super Admin';
     defaultEmail = 'superadmin@example.com';
     Icon = ShieldCheck;
     accentColor = 'from-violet-600 to-indigo-600';
@@ -63,10 +65,26 @@ export const LoginPortal: React.FC = () => {
     textAccent = 'text-teal-400';
   }
 
-  // Pre-fill default email for convenience only in sign-in mode when empty
+  useEffect(() => {
+    if (profile && profile.role === role) {
+      let targetDashboard = '/admin';
+      if (profile.role === 'super-admin') targetDashboard = '/super-admin';
+      else if (profile.role === 'manager') targetDashboard = '/manager';
+      else if (profile.role === 'kitchen-staff') targetDashboard = '/kitchen';
+      else if (profile.role === 'waiter') targetDashboard = '/waiter';
+      else if (profile.role === 'cashier') targetDashboard = '/cashier';
+
+      navigate(targetDashboard);
+    }
+  }, [profile, role, navigate]);
+
+  // Pre-fill default email and password for convenience in mock sandbox mode when empty
   useState(() => {
     if (!email) {
       setEmail(defaultEmail);
+    }
+    if (isMockMode && !password) {
+      setPassword('Admin@123');
     }
   });
 
@@ -119,6 +137,7 @@ export const LoginPortal: React.FC = () => {
         throw new Error('Please fill in all fields.');
       }
 
+      let resolvedRole = role;
       if (isRegistering) {
         // Enforce basic password strength
         if (password.length < 6) {
@@ -126,16 +145,19 @@ export const LoginPortal: React.FC = () => {
         }
         await signUp(email, password, role);
       } else {
-        await login(email, password);
+        const res = (await login(email, password, role)) as any;
+        if (res && res.role) {
+          resolvedRole = res.role;
+        }
       }
 
-      // Route to active portal workspace
+      // Route to active portal workspace based on the resolved user role
       let targetDashboard = '/admin';
-      if (role === 'super-admin') targetDashboard = '/super-admin';
-      else if (role === 'manager') targetDashboard = '/manager';
-      else if (role === 'kitchen-staff') targetDashboard = '/kitchen';
-      else if (role === 'waiter') targetDashboard = '/waiter';
-      else if (role === 'cashier') targetDashboard = '/cashier';
+      if (resolvedRole === 'super-admin') targetDashboard = '/super-admin';
+      else if (resolvedRole === 'manager') targetDashboard = '/manager';
+      else if (resolvedRole === 'kitchen-staff') targetDashboard = '/kitchen';
+      else if (resolvedRole === 'waiter') targetDashboard = '/waiter';
+      else if (resolvedRole === 'cashier') targetDashboard = '/cashier';
 
       navigate(targetDashboard);
     } catch (err: any) {
@@ -167,6 +189,12 @@ export const LoginPortal: React.FC = () => {
               ? `Registering credentials for Role: [${role.toUpperCase()}]`
               : 'Sign in to access your administrative dashboard'}
           </p>
+          {isMockMode && !isRegistering && (
+            <div className="mt-4 w-full p-3 bg-zinc-950/60 border border-zinc-800 rounded-2xl text-[10px] text-zinc-400 space-y-1 text-left">
+              <div><span className="font-extrabold text-zinc-300">Sandbox Login ID:</span> <span className="text-amber-400 font-mono select-all">{defaultEmail}</span></div>
+              <div><span className="font-extrabold text-zinc-300">Default Password:</span> <span className="font-mono bg-zinc-900 px-1 py-0.5 rounded text-amber-400 font-bold select-all">Admin@123</span></div>
+            </div>
+          )}
         </div>
 
         {error && (

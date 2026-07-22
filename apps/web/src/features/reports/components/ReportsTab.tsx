@@ -1,9 +1,10 @@
 import React from 'react';
-import { Download, TrendingUp, IndianRupee, ShoppingBag, CreditCard, Award, Percent } from 'lucide-react';
+import { Download, TrendingUp, IndianRupee, ShoppingBag, CreditCard, Award, Percent, DoorOpen } from 'lucide-react';
 import type { Order } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 
-import { useOrders } from '../../../hooks/useRealtimeData';
+import { useOrders, useRooms } from '../../../hooks/useRealtimeData';
+import { usePermission } from '../../auth/context/PermissionContext.js';
 
 interface ReportsTabProps {
   tenantId: string;
@@ -18,8 +19,15 @@ interface TopDishReport {
 }
 
 export const ReportsTab: React.FC<ReportsTabProps> = ({ tenantId, isMockMode, currencySymbol = '₹' }) => {
-  const { orders, loading } = useOrders(tenantId, isMockMode);
+  const { orders, loading: ordersLoading } = useOrders(tenantId, isMockMode);
+  const { rooms, loading: roomsLoading } = useRooms(tenantId, isMockMode);
+  const { isFeatureEnabled } = usePermission();
+  const roomsActive = isFeatureEnabled('rooms');
+
+  const loading = ordersLoading || (roomsActive && roomsLoading);
+
   const safeOrders: Order[] = Array.isArray(orders) ? orders : [];
+  const safeRooms: any[] = Array.isArray(rooms) ? rooms : [];
 
   const totalOrders = safeOrders.length;
   const totalRevenue = safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
@@ -217,6 +225,43 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ tenantId, isMockMode, cu
         <h4 className="text-xs font-bold text-white uppercase tracking-wider">Top Performing Dishes</h4>
         <DataTable data={topDishes} columns={columns} searchPlaceholder="Search dishes..." searchField="name" />
       </div>
+
+      {/* Rooms Utilization Analytics */}
+      {roomsActive && (
+        <div className="border border-zinc-800 bg-zinc-900/40 p-6 rounded-3xl space-y-4">
+          <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <DoorOpen className="h-4 w-4 text-emerald-400" />
+            Private Dining Rooms Utilization
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-zinc-950 p-4 border border-zinc-800 rounded-2xl">
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Rooms Provisioned</span>
+              <p className="text-lg font-bold text-white mt-1">{safeRooms.length}</p>
+            </div>
+            <div className="bg-zinc-950 p-4 border border-zinc-800 rounded-2xl">
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Rooms Occupied / In-use</span>
+              <p className="text-lg font-bold text-white mt-1">
+                {safeRooms.filter((r) => r.status === 'occupied' || r.status === 'checked-in').length}
+              </p>
+            </div>
+            <div className="bg-zinc-950 p-4 border border-zinc-800 rounded-2xl">
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Occupancy Ratio</span>
+              <p className="text-lg font-bold text-white mt-1">
+                {safeRooms.length > 0
+                  ? ((safeRooms.filter((r) => r.status === 'occupied' || r.status === 'checked-in').length / safeRooms.length) * 100).toFixed(1)
+                  : '0'}
+                %
+              </p>
+            </div>
+            <div className="bg-zinc-950 p-4 border border-zinc-800 rounded-2xl">
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Maintenance Queue</span>
+              <p className="text-lg font-bold text-white mt-1">
+                {safeRooms.filter((r) => r.status === 'maintenance').length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
