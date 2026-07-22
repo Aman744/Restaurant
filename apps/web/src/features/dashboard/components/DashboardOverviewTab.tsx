@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles, Eye, X, DoorOpen } from 'lucide-react';
+import { ChefHat, CreditCard, Utensils, ArrowRight, Clock, ShoppingBag, LayoutGrid, List, Sparkles, Eye, X, DoorOpen, ConciergeBell } from 'lucide-react';
 import { RevenueCard } from './RevenueCard';
 import { KitchenLoadCard } from './KitchenLoadCard';
 import { OccupancyCard } from './OccupancyCard';
@@ -150,6 +150,14 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
           >
             <ChefHat className="h-3.5 w-3.5 text-orange-400" />
             Kitchen KDS
+          </Link>
+          <Link
+            to="/waiter"
+            target="_blank"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl transition"
+          >
+            <ConciergeBell className="h-3.5 w-3.5 text-amber-400" />
+            Waiter Board
           </Link>
           <Link
             to="/cashier"
