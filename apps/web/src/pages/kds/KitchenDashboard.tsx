@@ -732,28 +732,15 @@ export const KitchenDashboard: React.FC = () => {
                     key={item.id}
                     className="border border-zinc-900 bg-zinc-905/30 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-zinc-800 transition duration-200"
                   >
-                    <div className="flex gap-4">
-                      {item.images && item.images[0] ? (
-                        <img
-                          src={item.images[0]}
-                          alt={item.name}
-                          className="h-16 w-16 rounded-xl object-cover border border-zinc-850"
-                        />
-                      ) : (
-                        <div className="h-16 w-16 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400 font-bold text-lg">
-                          {item.name.charAt(0)}
-                        </div>
-                      )}
-                      <div className="flex-1 space-y-1">
-                        <h4 className="text-sm font-bold text-white leading-snug">{item.name}</h4>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-500">
-                            {item.categoryId}
-                          </span>
-                          <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${statusColor}`}>
-                            {item.stockStatus?.replace('-', ' ') || 'in stock'}
-                          </span>
-                        </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-white leading-snug">{item.name}</h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-zinc-500">
+                          {item.categoryId}
+                        </span>
+                        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${statusColor}`}>
+                          {item.stockStatus?.replace('-', ' ') || 'in stock'}
+                        </span>
                       </div>
                     </div>
 
