@@ -51,7 +51,7 @@ const formatTimeAgo = (dateVal: any): string => {
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, title, sidebarItems }) => {
   const { logout } = useAuth();
-  const { profile } = useUserProfile();
+  const { profile, refreshProfile } = useUserProfile();
   const { tenant } = useTenant();
   const { mode, toggleColorMode } = useColorMode();
   const { isMockMode } = useAuth();
@@ -228,16 +228,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     }
   }, [profile, isMockMode, readNotifIds, dismissedNotifIds]);
 
-  const handleExitImpersonation = () => {
+  const handleExitImpersonation = async () => {
     localStorage.removeItem('impersonate_role');
     localStorage.removeItem('impersonate_tenantId');
     localStorage.removeItem('impersonate_tenantName');
-    window.location.href = '#/super-admin/tenants';
+    await refreshProfile();
+    navigate('/super-admin/tenants');
   };
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/';
+    navigate('/');
   };
 
   const handleMarkAllRead = () => {

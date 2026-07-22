@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
+import { useUserProfile } from '../../features/auth/context/UserContext';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../lib/firebase.js';
 import { TenantConverter } from '@restaurant-qr/infra';
@@ -36,6 +37,8 @@ const MOCK_TENANTS_KEY = 'restaurant_qr_mock_tenants_db';
 
 export const SuperAdminDashboard: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { refreshProfile } = useUserProfile();
   const { isMockMode } = useAuth();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -467,12 +470,13 @@ export const SuperAdminDashboard: React.FC = () => {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
-  const handleImpersonate = (targetTenantId: string, tenantName: string) => {
+  const handleImpersonate = async (targetTenantId: string, tenantName: string) => {
     localStorage.setItem('impersonate_role', 'restaurant-admin');
     localStorage.setItem('impersonate_tenantId', targetTenantId);
     localStorage.setItem('impersonate_tenantName', tenantName);
+    await refreshProfile();
     toast.success(`Entering Impersonation mode for restaurant: "${tenantName}" as Restaurant Admin.`);
-    setTimeout(() => { window.location.href = '#/admin'; }, 1000);
+    setTimeout(() => { navigate('/admin'); }, 1000);
   };
 
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
