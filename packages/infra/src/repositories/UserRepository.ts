@@ -2,7 +2,9 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  deleteDoc
+  deleteDoc,
+  collection,
+  onSnapshot
 } from 'firebase/firestore';
 import type { UserProfile, IUserRepository } from '@restaurant-qr/core';
 
@@ -52,5 +54,12 @@ export class UserRepository implements IUserRepository {
   async delete(uid: string): Promise<void> {
     const docRef = doc(this.db, 'users', uid);
     await deleteDoc(docRef);
+  }
+
+  subscribeTenantUsers(tenantId: string, callback: (users: UserProfile[]) => void): () => void {
+    const colRef = collection(this.db, 'tenants', tenantId, 'users').withConverter(UserConverter);
+    return onSnapshot(colRef, (snap: any) => {
+      callback(snap.docs.map((doc: any) => doc.data() as UserProfile));
+    });
   }
 }

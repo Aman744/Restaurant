@@ -77,7 +77,7 @@ export const AddMenuModal: React.FC<AddMenuModalProps> = ({ tenantId, isMockMode
         name: data.name,
         description: data.description || '',
         price: data.price,
-        images: editingItem?.images || ['https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'],
+        images: [],
         dietaryTags: [data.dietaryTag as DietaryTag],
         allergens: editingItem?.allergens || [],
         stockStatus: editingItem?.stockStatus || 'in-stock',
@@ -172,6 +172,8 @@ export const AddMenuModal: React.FC<AddMenuModalProps> = ({ tenantId, isMockMode
               placeholder="Brief description of ingredients..."
             />
           </div>
+
+
 
           <div className="flex justify-end gap-3 pt-3">
             <button

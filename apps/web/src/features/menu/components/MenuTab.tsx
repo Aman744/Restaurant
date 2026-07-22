@@ -8,23 +8,26 @@ import { useToast } from '../../../components/shared/ToastContext';
 import { MenuService } from '../../../services/MenuService';
 import { AddMenuModal } from './AddMenuModal';
 
+import { useMenu } from '../../../hooks/useRealtimeData';
+
 interface MenuTabProps {
   tenantId: string;
-  menuItems?: MenuItem[];
   isMockMode: boolean;
   currencySymbol?: string;
 }
 
 export const MenuTab: React.FC<MenuTabProps> = ({
   tenantId,
-  menuItems = [],
   isMockMode,
   currencySymbol = '₹'
 }) => {
+  const { menuItems, loading } = useMenu(tenantId, isMockMode);
   const { setAddModalOpen, setEditingItem } = useMenuStore();
   const { confirm } = useConfirm();
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -81,15 +84,31 @@ export const MenuTab: React.FC<MenuTabProps> = ({
   const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const result = await MenuService.importCsv(tenantId, text, isMockMode);
+    
+    setIsImporting(true);
+    setImportProgress(null);
+    try {
+      const text = await file.text();
+      const result = await MenuService.importCsv(tenantId, text, isMockMode, (current, total) => {
+        setImportProgress({ current, total });
+      });
 
-    if (result.isValid) {
-      toast.success(`Successfully imported ${result.validRows.length} menu items from CSV!`);
-    } else {
-      toast.error(`CSV Validation Errors: ${result.errors.join(' | ')}`);
+      if (result.isValid) {
+        if (result.validRows.length > 0) {
+          toast.success(`Successfully imported ${result.validRows.length} menu items from CSV!`);
+        } else {
+          toast.info('No new items were imported. All items in CSV were already in the menu.');
+        }
+      } else {
+        toast.error(`CSV Validation Errors: ${result.errors.join(' | ')}`);
+      }
+    } catch (err: any) {
+      toast.error(`CSV Import failed: ${err.message}`);
+    } finally {
+      setIsImporting(false);
+      setImportProgress(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const renderDietaryBadge = (tags?: DietaryTag[]) => {
@@ -197,8 +216,45 @@ export const MenuTab: React.FC<MenuTabProps> = ({
     }
   ];
 
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading menu items...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {isImporting && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md space-y-4">
+          <div className="relative flex items-center justify-center">
+            <div className="h-14 w-14 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
+            <ChefHat className="absolute h-6 w-6 text-emerald-400 animate-pulse" />
+          </div>
+          <div className="text-center space-y-2 max-w-xs w-full px-4">
+            <p className="text-sm font-black text-white uppercase tracking-wider">Parsing & Importing CSV</p>
+            {importProgress ? (
+              <div className="space-y-2">
+                <p className="text-xs text-emerald-400 font-bold font-mono">
+                  Importing dish {importProgress.current} of {importProgress.total}...
+                </p>
+                <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-75"
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500 animate-pulse">Checking for duplicates & prepping menu...</p>
+            )}
+          </div>
+        </div>
+      )}
       {/* Header Actions & Title */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -241,10 +297,15 @@ export const MenuTab: React.FC<MenuTabProps> = ({
           <input type="file" accept=".csv" ref={fileInputRef} onChange={handleCsvFileChange} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl transition shadow-md"
+            disabled={isImporting}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 text-xs font-semibold rounded-xl transition shadow-md disabled:opacity-50"
           >
-            <Upload className="h-4 w-4 text-emerald-400" />
-            Import CSV
+            {isImporting ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+            ) : (
+              <Upload className="h-4 w-4 text-emerald-400" />
+            )}
+            {isImporting ? 'Importing CSV...' : 'Import CSV'}
           </button>
           <button
             onClick={() => {

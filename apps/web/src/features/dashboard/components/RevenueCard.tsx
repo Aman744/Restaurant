@@ -1,12 +1,19 @@
 import React from 'react';
-import { IndianRupee, TrendingUp } from 'lucide-react';
+import { IndianRupee, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface RevenueCardProps {
   totalRevenue: number;
+  revenueChangePercent?: number;
   currencySymbol?: string;
 }
 
-export const RevenueCard: React.FC<RevenueCardProps> = ({ totalRevenue, currencySymbol = '₹' }) => {
+export const RevenueCard: React.FC<RevenueCardProps> = ({ 
+  totalRevenue, 
+  revenueChangePercent = 0, 
+  currencySymbol = '₹' 
+}) => {
+  const isPositive = revenueChangePercent >= 0;
+
   return (
     <div className="border border-zinc-800 bg-zinc-900/60 p-5 rounded-2xl space-y-3 shadow-lg flex flex-col justify-between">
       <div className="flex justify-between items-center text-zinc-400">
@@ -20,9 +27,13 @@ export const RevenueCard: React.FC<RevenueCardProps> = ({ totalRevenue, currency
           {currencySymbol}
           {totalRevenue.toFixed(2)}
         </h3>
-        <span className="flex items-center text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
-          <TrendingUp className="h-3 w-3 mr-1" />
-          +14.2%
+        <span className={`flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shrink-0 ${
+          isPositive 
+            ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+            : 'text-red-400 bg-red-500/10 border-red-500/20'
+        }`}>
+          {isPositive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+          {isPositive ? '+' : ''}{revenueChangePercent.toFixed(1)}%
         </span>
       </div>
     </div>

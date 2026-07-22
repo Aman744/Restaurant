@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { db } from '../../lib/firebase.js';
-import { collection, onSnapshot, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
-import { MenuItemConverter } from '@restaurant-qr/infra';
+import { MenuItemConverter, OrderRepository } from '@restaurant-qr/infra';
 import type { MenuItem, Order, OrderItem, OrderStatus, PaymentStatus } from '@restaurant-qr/core';
+import { OrderService } from '../../services/OrderService.js';
+import { EventService } from '../../services/EventService.js';
 import confetti from 'canvas-confetti';
 import { useToast } from '../../components/shared/ToastContext';
 import {
@@ -71,6 +73,8 @@ export const CustomerMenu: React.FC = () => {
   const [restaurantName, setRestaurantName] = useState(() => `Restaurant (${tenantId.replace(/^tenant_/, '').slice(0, 6).toUpperCase()})`);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tableExists, setTableExists] = useState<boolean | null>(null);
+  const [tableStatus, setTableStatus] = useState<string>('available');
 
   // Cart states
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -158,14 +162,50 @@ export const CustomerMenu: React.FC = () => {
       }
 
       const cachedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
+      let foundTable = false;
       if (cachedTables) {
         try {
           const tablesList = JSON.parse(cachedTables);
-          const matchTable = tablesList.find((t: any) => t.id === tableId);
-          if (matchTable && matchTable.number && active) {
+          const matchTable = tablesList.find((t: any) => t.id === tableId && t.tenantId === tenantId);
+          if (matchTable && active) {
             setTableName(matchTable.number);
+            setTableStatus(matchTable.status || 'available');
+            setTableExists(true);
+            foundTable = true;
+            let currentOrderId = matchTable.activeOrderId;
+            if (!currentOrderId) {
+              const cachedOrders = localStorage.getItem(MOCK_ORDERS_KEY);
+              if (cachedOrders) {
+                const ordersList = JSON.parse(cachedOrders);
+                const matchingActiveOrder = ordersList
+                  .filter((o: any) => o.tableId === tableId && o.status !== 'completed' && o.status !== 'archived')
+                  .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                if (matchingActiveOrder) {
+                  currentOrderId = matchingActiveOrder.id;
+                  matchTable.activeOrderId = currentOrderId;
+                  matchTable.status = 'occupied';
+                  localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(tablesList));
+                  window.dispatchEvent(new Event('storage'));
+                }
+              }
+            }
+
+            if (currentOrderId) {
+              const cachedOrders = localStorage.getItem(MOCK_ORDERS_KEY);
+              if (cachedOrders) {
+                const ordersList = JSON.parse(cachedOrders);
+                const orderObj = ordersList.find((o: any) => o.id === currentOrderId);
+                if (orderObj && orderObj.status !== 'completed' && orderObj.status !== 'archived') {
+                  setPlacedOrderId(currentOrderId);
+                  setTrackedOrder(orderObj);
+                }
+              }
+            }
           }
         } catch (e) {}
+      }
+      if (!foundTable && active) {
+        setTableExists(false);
       }
 
       setLoading(false);
@@ -198,15 +238,93 @@ export const CustomerMenu: React.FC = () => {
       );
 
       getDoc(doc(db, 'tenants', tenantId, 'tables', tableId))
-        .then((snap: any) => {
-          if (active && snap.exists()) {
-            const tData = snap.data();
-            if (tData?.number) {
-              setTableName(tData.number);
+        .then(async (snap: any) => {
+          if (active) {
+            if (snap.exists()) {
+              const tData = snap.data();
+              setTableName(tData.number || 'Table');
+              setTableStatus(tData.status || 'available');
+              setTableExists(true);
+              
+              let currentOrderId = tData.activeOrderId;
+              if (!currentOrderId) {
+                try {
+                  const repo = new OrderRepository(db);
+                  const activeOrdersList = await repo.listActive(tenantId);
+                  const matchingActiveOrder = activeOrdersList
+                    .filter((o) => o.tableId === tableId)
+                    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+                  
+                  if (matchingActiveOrder) {
+                    currentOrderId = matchingActiveOrder.id;
+                    await setDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { activeOrderId: currentOrderId, status: 'occupied' }, { merge: true });
+                  }
+                } catch (err) {
+                  // Gracefully ignore active order discovery list queries for unauthenticated customers
+                  console.warn('Customer active order discovery skipped (requires staff authentication):', err);
+                }
+              }
+
+              if (currentOrderId) {
+                try {
+                  // Direct fetch to bypass repository subcollection read which requires authenticated permissions
+                  const orderDocRef = doc(db, 'tenants', tenantId, 'orders', currentOrderId);
+                  const orderSnap = await getDoc(orderDocRef);
+                  if (orderSnap.exists()) {
+                    const rawData = orderSnap.data() as any;
+                    const toDate = (val: any): Date => {
+                      if (!val) return new Date();
+                      if (typeof val.toDate === 'function') return val.toDate();
+                      return new Date(val);
+                    };
+                    const items = Array.isArray(rawData.items) ? rawData.items.map((raw: any) => ({
+                      id: raw.id || '',
+                      menuItemId: raw.menuItemId,
+                      name: raw.name,
+                      quantity: raw.quantity,
+                      unitPrice: raw.unitPrice,
+                      totalPrice: raw.totalPrice,
+                      stationId: raw.stationId,
+                      status: raw.status,
+                      selectedVariant: raw.selectedVariant || undefined,
+                      selectedAddons: raw.selectedAddons || undefined
+                    })) : [];
+
+                    const orderObj: Order = {
+                      id: orderSnap.id,
+                      tenantId: rawData.tenantId,
+                      tableId: rawData.tableId,
+                      tableNumber: rawData.tableNumber,
+                      customerId: rawData.customerId,
+                      customerName: rawData.customerName || undefined,
+                      status: rawData.status,
+                      kitchenStationStatus: rawData.kitchenStationStatus || {},
+                      totals: rawData.totals,
+                      payment: rawData.payment,
+                      createdAt: toDate(rawData.createdAt),
+                      updatedAt: toDate(rawData.updatedAt),
+                      items
+                    };
+
+                    if (orderObj.status !== 'completed' && orderObj.status !== 'archived') {
+                      if (active) {
+                        setPlacedOrderId(currentOrderId);
+                        setTrackedOrder(orderObj);
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('Failed to load active order details:', err);
+                }
+              }
+            } else {
+              setTableExists(false);
             }
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (active) setTableExists(false);
+        });
 
       return () => {
         active = false;
@@ -385,7 +503,9 @@ export const CustomerMenu: React.FC = () => {
       name: c.menuItem.name,
       quantity: c.quantity,
       unitPrice: c.menuItem.price,
+      unitPriceMinor: Math.round(c.menuItem.price * 100),
       totalPrice: c.menuItem.price * c.quantity,
+      totalPriceMinor: Math.round(c.menuItem.price * c.quantity * 100),
       stationId: 'main',
       status: 'pending'
     }));
@@ -398,6 +518,13 @@ export const CustomerMenu: React.FC = () => {
       customerId: `cust_${Date.now()}`,
       customerName: customerName.trim() || 'Guest Customer',
       status: 'pending' as OrderStatus,
+      statusHistory: [
+        {
+          status: 'pending',
+          timestamp: new Date(),
+          actorId: 'customer'
+        }
+      ],
       kitchenStationStatus: { main: 'pending' },
       totals: {
         subtotal: cartSubtotal,
@@ -406,6 +533,14 @@ export const CustomerMenu: React.FC = () => {
         tip: 0,
         discount: 0,
         grandTotal: cartTotal
+      },
+      totalsMinor: {
+        subtotal: Math.round(cartSubtotal * 100),
+        tax: Math.round(tax * 100),
+        serviceCharge: Math.round(serviceCharge * 100),
+        tip: 0,
+        discount: 0,
+        grandTotal: Math.round(cartTotal * 100)
       },
       payment: {
         status: 'unpaid' as PaymentStatus,
@@ -421,37 +556,33 @@ export const CustomerMenu: React.FC = () => {
           try {
             const parsedTables = JSON.parse(cachedTables);
             const updatedTables = parsedTables.map((t: any) =>
-              t.id === tableId ? { ...t, status: 'occupied' } : t
+              t.id === tableId ? { ...t, status: 'occupied', activeOrderId: orderId } : t
             );
             localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(updatedTables));
             window.dispatchEvent(new Event('storage'));
           } catch (e) {}
         }
 
-        const cached = localStorage.getItem(MOCK_ORDERS_KEY);
-        const existingOrders = cached ? JSON.parse(cached) : [];
         const fullMockOrder: Order = {
           ...orderPayload,
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        existingOrders.push(fullMockOrder);
-        localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(existingOrders));
+        await OrderService.submitOrder(tenantId, fullMockOrder, true);
         setTrackedOrder(fullMockOrder);
+        await EventService.logEvent(tenantId, 'order.created', orderId, 'customer', { tableId, itemsCount: newOrderItems.length, grandTotal: cartTotal }, true);
       } else {
-        await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), {
+        const fullLiveOrder: Order = {
           ...orderPayload,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-
-        for (const item of newOrderItems) {
-          await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId, 'order_items', item.id), item);
-        }
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        await OrderService.submitOrder(tenantId, fullLiveOrder, false);
 
         try {
-          await setDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: 'occupied' }, { merge: true });
+          await setDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: 'occupied', activeOrderId: orderId }, { merge: true });
         } catch (err) {}
+        await EventService.logEvent(tenantId, 'order.created', orderId, 'customer', { tableId, itemsCount: newOrderItems.length, grandTotal: cartTotal }, false);
       }
 
       confetti({
@@ -475,6 +606,34 @@ export const CustomerMenu: React.FC = () => {
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white space-y-3">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
         <p className="text-xs font-semibold text-zinc-400">Opening Digital Menu...</p>
+      </div>
+    );
+  }
+
+  if (tableExists === false) {
+    return <Navigate to="/404" replace />;
+  }
+
+  if (tableStatus === 'cleaning') {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-6 text-center text-white">
+        <div className="max-w-sm space-y-4 border border-zinc-800 bg-zinc-900/60 p-6 rounded-3xl shadow-2xl">
+          <div className="inline-flex p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-2xl">
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+          <h3 className="text-base font-extrabold uppercase tracking-wider">Table is being sanitized</h3>
+          <p className="text-xs text-zinc-400">
+            Our staff is currently sanitizing and prepping this table for your dining experience. Please give us a few moments!
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold uppercase rounded-xl transition"
+          >
+            Refresh Status
+          </button>
+        </div>
       </div>
     );
   }
@@ -672,13 +831,6 @@ export const CustomerMenu: React.FC = () => {
               className="border border-zinc-850 bg-zinc-900/60 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-zinc-750 transition shadow-lg"
             >
               <div className="space-y-2">
-                {item.images && item.images[0] && (
-                  <img
-                    src={item.images[0]}
-                    alt={item.name}
-                    className="w-full h-36 object-cover rounded-xl border border-zinc-800"
-                  />
-                )}
                 <div className="flex justify-between items-start">
                   <h3 className="font-extrabold text-white text-sm">{item.name}</h3>
                   <span className="font-black text-emerald-400 text-sm">₹{item.price}</span>

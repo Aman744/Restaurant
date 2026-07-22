@@ -3,3 +3,8 @@ export * from './ports/ITenantRepository.js';
 export * from './ports/IUserRepository.js';
 export * from './ports/IMenuRepository.js';
 export * from './ports/IOrderRepository.js';
+export * from './ports/ICustomerRepository.js';
+export * from './ports/IInventoryRepository.js';
+export * from './ports/IPaymentRepository.js';
+export * from './ports/IReservationRepository.js';
+export * from './ports/ITableRepository.js';

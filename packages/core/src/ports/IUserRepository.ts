@@ -4,4 +4,5 @@ export interface IUserRepository {
   getById(uid: string): Promise<UserProfile | null>;
   save(user: UserProfile): Promise<void>;
   delete(uid: string): Promise<void>;
+  subscribeTenantUsers(tenantId: string, callback: (users: UserProfile[]) => void): () => void;
 }

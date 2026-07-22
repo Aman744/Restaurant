@@ -152,7 +152,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
       if (cached && active) {
         try {
           const parsed = JSON.parse(cached);
-          const activeOrders = parsed.filter((o: any) => o.status !== 'completed' && o.status !== 'archived');
+          const activeOrders = parsed.filter(
+            (o: any) => o.status !== 'completed' && o.status !== 'archived' && o.tenantId === tenantId
+          );
           processOrdersIntoNotifs(activeOrders);
         } catch (e) {}
       }
@@ -188,7 +190,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
     localStorage.removeItem('impersonate_role');
     localStorage.removeItem('impersonate_tenantId');
     localStorage.removeItem('impersonate_tenantName');
-    window.location.href = '/super-admin/tenants';
+    window.location.href = '#/super-admin/tenants';
   };
 
   const handleLogout = async () => {

@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase.js';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { OrderRepository } from '@restaurant-qr/infra';
 import type { Order, OrderStatus } from '@restaurant-qr/core';
 
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
@@ -19,8 +19,19 @@ export class OrderService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'orders', orderId);
-    await updateDoc(docRef, { status, updatedAt: new Date() });
+    const repo = new OrderRepository(db);
+    const order = await repo.getById(tenantId, orderId);
+    if (order) {
+      order.status = status;
+      order.statusHistory = order.statusHistory || [];
+      order.statusHistory.push({
+        status,
+        timestamp: new Date(),
+        actorId: 'system'
+      });
+      order.updatedAt = new Date();
+      await repo.save(tenantId, order);
+    }
   }
 
   /**
@@ -52,14 +63,25 @@ export class OrderService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'orders', orderId);
-    await updateDoc(docRef, {
-      status: 'completed',
-      'payment.status': 'paid',
-      'payment.method': paymentMethod,
-      'payment.amountPaid': amount,
-      updatedAt: new Date()
-    });
+    const repo = new OrderRepository(db);
+    const order = await repo.getById(tenantId, orderId);
+    if (order) {
+      order.status = 'completed';
+      order.statusHistory = order.statusHistory || [];
+      order.statusHistory.push({
+        status: 'completed',
+        timestamp: new Date(),
+        actorId: 'cashier'
+      });
+      order.payment = {
+        status: 'paid',
+        method: paymentMethod,
+        amountPaid: amount,
+        amountPaidMinor: Math.round(amount * 100)
+      };
+      order.updatedAt = new Date();
+      await repo.save(tenantId, order);
+    }
   }
 
   /**
@@ -76,7 +98,28 @@ export class OrderService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'orders', orderId);
-    await deleteDoc(docRef);
+    const repo = new OrderRepository(db);
+    const order = await repo.getById(tenantId, orderId);
+    if (order) {
+      order.isDeleted = true;
+      order.deletedAt = new Date();
+      await repo.save(tenantId, order);
+    }
+  }
+
+  /**
+   * Submits a new order using the OrderRepository
+   */
+  static async submitOrder(tenantId: string, order: Order, isMockMode: boolean): Promise<void> {
+    if (isMockMode) {
+      const stored = localStorage.getItem(MOCK_ORDERS_KEY);
+      const existingOrders = stored ? JSON.parse(stored) : [];
+      existingOrders.push(order);
+      localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(existingOrders));
+      return;
+    }
+
+    const repo = new OrderRepository(db);
+    await repo.save(tenantId, order);
   }
 }

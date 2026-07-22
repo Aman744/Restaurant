@@ -70,6 +70,45 @@ export const LoginPortal: React.FC = () => {
     }
   });
 
+  const getFriendlyErrorMessage = (err: any): string => {
+    if (!err) return 'An error occurred during authentication.';
+    const code = err.code || '';
+    const message = err.message || '';
+
+    if (code === 'auth/invalid-email' || message.includes('auth/invalid-email')) {
+      return 'The email address format is invalid.';
+    }
+    if (code === 'auth/user-disabled' || message.includes('auth/user-disabled')) {
+      return 'This account has been suspended or disabled.';
+    }
+    if (code === 'auth/user-not-found' || message.includes('auth/user-not-found')) {
+      return 'No account found with this email address.';
+    }
+    if (code === 'auth/wrong-password' || message.includes('auth/wrong-password')) {
+      return 'Incorrect password. Please try again.';
+    }
+    if (code === 'auth/email-already-in-use' || message.includes('auth/email-already-in-use')) {
+      return 'An account with this email already exists.';
+    }
+    if (code === 'auth/weak-password' || message.includes('auth/weak-password')) {
+      return 'Password must be at least 6 characters.';
+    }
+    if (code === 'auth/network-request-failed' || message.includes('auth/network-request-failed')) {
+      return 'Network connection failed. Please check your internet.';
+    }
+    if (code === 'auth/too-many-requests' || message.includes('auth/too-many-requests')) {
+      return 'Too many failed attempts. Access temporarily locked.';
+    }
+    if (code === 'auth/invalid-credential' || message.includes('auth/invalid-credential')) {
+      return 'Invalid email or password.';
+    }
+
+    if (message.startsWith('Firebase:')) {
+      return message.replace('Firebase:', '').trim();
+    }
+    return message;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -100,7 +139,7 @@ export const LoginPortal: React.FC = () => {
 
       navigate(targetDashboard);
     } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication.');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

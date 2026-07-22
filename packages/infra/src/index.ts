@@ -3,3 +3,8 @@ export * from './repositories/TenantRepository.js';
 export * from './repositories/UserRepository.js';
 export * from './repositories/MenuRepository.js';
 export * from './repositories/OrderRepository.js';
+export * from './repositories/CustomerRepository.js';
+export * from './repositories/InventoryRepository.js';
+export * from './repositories/PaymentRepository.js';
+export * from './repositories/ReservationRepository.js';
+export * from './repositories/TableRepository.js';

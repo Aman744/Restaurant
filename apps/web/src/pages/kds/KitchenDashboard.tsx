@@ -4,9 +4,10 @@ import { ChefHat, Flame, CheckCircle, Clock, Bell, Settings, Search, AlertCircle
 import type { OrderItem, Order, MenuItem, OrderStatus } from '@restaurant-qr/core';
 import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { db } from '../../lib/firebase.js';
-import { doc, setDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
-import { OrderConverter } from '@restaurant-qr/infra';
+import { doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
+import { OrderRepository } from '@restaurant-qr/infra';
 import { useLocation } from 'react-router-dom';
+import { EventService } from '../../services/EventService.js';
 
 interface KDSOrder {
   id: string;
@@ -37,6 +38,34 @@ export const KitchenDashboard: React.FC = () => {
 
   const isMockMode = !import.meta.env.VITE_FIREBASE_API_KEY ||
     import.meta.env.VITE_FIREBASE_API_KEY === 'your_api_key_here';
+
+  // Support switching tenants in mock mode / super-admin to view different datasets
+  const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState(tenantId);
+
+  useEffect(() => {
+    setSelectedTenantId(tenantId);
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (isMockMode) {
+      const stored = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const list = parsed.map((t: any) => ({ id: t.id, name: t.name }));
+          if (!list.some((t: any) => t.id === 'tenant_dev_123')) {
+            list.unshift({ id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' });
+          }
+          setTenantList(list);
+        } catch (e) {}
+      } else {
+        setTenantList([
+          { id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' }
+        ]);
+      }
+    }
+  }, [isMockMode]);
 
   const location = useLocation();
   const currentView = location.pathname.endsWith('/availability') ? 'inventory' : 'orders';
@@ -81,11 +110,13 @@ export const KitchenDashboard: React.FC = () => {
         const cached = localStorage.getItem(MOCK_ORDERS_KEY);
         if (cached && active) {
           try {
-            const parsed = JSON.parse(cached).map((o: any) => ({
-              ...o,
-              createdAt: parseOrderDate(o.createdAt),
-              updatedAt: parseOrderDate(o.updatedAt)
-            }));
+            const parsed = JSON.parse(cached)
+              .map((o: any) => ({
+                ...o,
+                createdAt: parseOrderDate(o.createdAt),
+                updatedAt: parseOrderDate(o.updatedAt)
+              }))
+              .filter((o: any) => o.tenantId === selectedTenantId);
             
             setOrders((prev) => {
               if (parsed.length > prev.length && prev.length > 0) {
@@ -104,29 +135,15 @@ export const KitchenDashboard: React.FC = () => {
         active = false;
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'orders').withConverter(OrderConverter);
-      
-      const unsubscribe = onSnapshot(colRef, async (snap: any) => {
+      const repo = new OrderRepository(db);
+      const unsubscribe = repo.subscribeAll(selectedTenantId, (ordersList: Order[]) => {
         if (!active) return;
-        const ordersList: Order[] = [];
-        for (const d of snap.docs) {
-          const header = d.data();
-          const itemsCol = collection(db, 'tenants', tenantId, 'orders', d.id, 'order_items');
-          const itemsSnap = await getDocs(itemsCol);
-          ordersList.push({
-            ...header,
-            items: itemsSnap.docs.map((it: any) => ({ id: it.id, ...it.data() }))
-          } as Order);
-        }
-
         setOrders((prev) => {
           if (ordersList.length > prev.length && prev.length > 0) {
             playBellSound();
           }
           return ordersList;
         });
-      }, (err: any) => {
-        console.error('KDS orders listener error:', err);
       });
 
       return () => {
@@ -134,7 +151,7 @@ export const KitchenDashboard: React.FC = () => {
         active = false;
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   // Sync real-time menu items
   useEffect(() => {
@@ -146,7 +163,8 @@ export const KitchenDashboard: React.FC = () => {
         const cached = localStorage.getItem(MOCK_MENU_KEY);
         if (cached && active) {
           try {
-            setMenuItems(JSON.parse(cached));
+            const parsed = JSON.parse(cached) as MenuItem[];
+            setMenuItems(parsed.filter((item) => item.tenantId === selectedTenantId));
           } catch (e) {}
         }
       };
@@ -157,7 +175,7 @@ export const KitchenDashboard: React.FC = () => {
         active = false;
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'menu_items');
+      const colRef = collection(db, 'tenants', selectedTenantId, 'menu_items');
       const unsubscribe = onSnapshot(colRef, (snap: any) => {
         if (active) {
           setMenuItems(snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as MenuItem)));
@@ -171,7 +189,7 @@ export const KitchenDashboard: React.FC = () => {
         active = false;
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   // Keep timers running with accurate elapsed seconds
   useEffect(() => {
@@ -221,10 +239,12 @@ export const KitchenDashboard: React.FC = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
+          let wasAllDone = false;
           const updated = parsed.map((o: any) => {
             if (o.id === orderId) {
               const updatedItems = (o.items || []).map((i: any) => i.id === itemId ? { ...i, status: 'ready' } : i);
               const allDone = updatedItems.length === 0 || updatedItems.every((i: any) => i.status === 'ready' || i.status === 'served');
+              wasAllDone = allDone;
               return {
                 ...o,
                 items: updatedItems,
@@ -236,18 +256,27 @@ export const KitchenDashboard: React.FC = () => {
           });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
+          if (wasAllDone) {
+            await EventService.logEvent(selectedTenantId, 'order.ready', orderId, profile?.uid || 'kitchen', { trigger: 'item_complete', itemId }, true);
+          }
         } catch (e) {}
       }
     } else {
       try {
-        const itemDocRef = doc(db, 'tenants', tenantId, 'orders', orderId, 'order_items', itemId);
-        await setDoc(itemDocRef, { status: 'ready' }, { merge: true });
-
-        const itemsCol = collection(db, 'tenants', tenantId, 'orders', orderId, 'order_items');
-        const itemsSnap = await getDocs(itemsCol);
-        const allReady = itemsSnap.docs.every((d: any) => d.data().status === 'ready' || d.data().status === 'served');
-        if (allReady) {
-          await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { status: 'ready', updatedAt: new Date() }, { merge: true });
+        const repo = new OrderRepository(db);
+        const order = await repo.getById(selectedTenantId, orderId);
+        if (order) {
+          const updatedItems = order.items.map((i) => i.id === itemId ? { ...i, status: 'ready' as const } : i);
+          const allDone = updatedItems.every((i) => i.status === 'ready' || i.status === 'served');
+          order.items = updatedItems;
+          if (allDone) {
+            order.status = 'ready';
+          }
+          order.updatedAt = new Date();
+          await repo.save(selectedTenantId, order);
+          if (allDone) {
+            await EventService.logEvent(selectedTenantId, 'order.ready', orderId, profile?.uid || 'kitchen', { trigger: 'item_complete', itemId }, false);
+          }
         }
       } catch (err: any) {
         console.error('Failed to update KDS item status:', err);
@@ -265,17 +294,41 @@ export const KitchenDashboard: React.FC = () => {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          const updated = parsed.map((o: any) =>
-            o.id === orderId ? { ...o, status: nextStatus, updatedAt: new Date().toISOString() } : o
-          );
+          const updated = parsed.map((o: any) => {
+            if (o.id === orderId) {
+              const updatedItems = nextStatus === 'ready'
+                ? (o.items || []).map((i: any) => ({ ...i, status: 'ready' }))
+                : (nextStatus === 'preparing'
+                  ? (o.items || []).map((i: any) => i.status === 'pending' ? { ...i, status: 'preparing' } : i)
+                  : o.items);
+              return { ...o, status: nextStatus, items: updatedItems, updatedAt: new Date().toISOString() };
+            }
+            return o;
+          });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
+          if (nextStatus === 'preparing' || nextStatus === 'ready') {
+            await EventService.logEvent(selectedTenantId, `order.${nextStatus}`, orderId, profile?.uid || 'kitchen', { trigger: 'kds_update' }, true);
+          }
         } catch (e) {}
       }
     } else {
       try {
-        const orderDocRef = doc(db, 'tenants', tenantId, 'orders', orderId);
-        await setDoc(orderDocRef, { status: nextStatus, updatedAt: new Date() }, { merge: true });
+        const repo = new OrderRepository(db);
+        const order = await repo.getById(selectedTenantId, orderId);
+        if (order) {
+          order.status = nextStatus;
+          if (nextStatus === 'preparing') {
+            order.items = order.items.map((i) => i.status === 'pending' ? { ...i, status: 'preparing' as const } : i);
+          } else if (nextStatus === 'ready') {
+            order.items = order.items.map((i) => i.status === 'pending' || i.status === 'preparing' ? { ...i, status: 'ready' as const } : i);
+          }
+          order.updatedAt = new Date();
+          await repo.save(selectedTenantId, order);
+          if (nextStatus === 'preparing' || nextStatus === 'ready') {
+            await EventService.logEvent(selectedTenantId, `order.${nextStatus}`, orderId, profile?.uid || 'kitchen', { trigger: 'kds_update' }, false);
+          }
+        }
       } catch (err: any) {
         console.error('Failed to update parent order status:', err);
       }
@@ -300,7 +353,7 @@ export const KitchenDashboard: React.FC = () => {
       }
     } else {
       try {
-        const itemDocRef = doc(db, 'tenants', tenantId, 'menu_items', itemId);
+        const itemDocRef = doc(db, 'tenants', selectedTenantId, 'menu_items', itemId);
         await setDoc(itemDocRef, { stockStatus: status }, { merge: true });
       } catch (err: any) {
         console.error('Failed to update stock status:', err);
@@ -326,7 +379,7 @@ export const KitchenDashboard: React.FC = () => {
       }
     } else {
       try {
-        const itemDocRef = doc(db, 'tenants', tenantId, 'menu_items', itemId);
+        const itemDocRef = doc(db, 'tenants', selectedTenantId, 'menu_items', itemId);
         await setDoc(itemDocRef, { preparationTime: prepTime }, { merge: true });
       } catch (err: any) {
         console.error('Failed to update prep time:', err);
@@ -352,7 +405,7 @@ export const KitchenDashboard: React.FC = () => {
       }
     } else {
       try {
-        const itemDocRef = doc(db, 'tenants', tenantId, 'menu_items', itemId);
+        const itemDocRef = doc(db, 'tenants', selectedTenantId, 'menu_items', itemId);
         await setDoc(itemDocRef, { isActive: !currentActive }, { merge: true });
       } catch (err: any) {
         console.error('Failed to toggle active status:', err);
@@ -361,88 +414,58 @@ export const KitchenDashboard: React.FC = () => {
   };
 
   // Active Orders for KDS Grid
-  const kdsOrders: KDSOrder[] = orders
-    .map((o) => {
-      let safeItems = Array.isArray(o?.items) && o.items.length > 0 ? o.items : [
-        {
-          id: `item_kds_${o.id}`,
-          menuItemId: 'item_01',
-          name: 'Chef\'s Special Order Dish',
-          quantity: 1,
-          unitPrice: o?.totals?.grandTotal || 0,
-          totalPrice: o?.totals?.grandTotal || 0,
-          stationId: 'main' as const,
-          status: 'pending' as const
-        }
-      ];
+  const mapToKdsOrder = (o: Order): KDSOrder => {
+    let safeItems = Array.isArray(o?.items) && o.items.length > 0 ? o.items : [
+      {
+        id: `item_kds_${o.id}`,
+        menuItemId: 'item_01',
+        name: 'Chef\'s Special Order Dish',
+        quantity: 1,
+        unitPrice: o?.totals?.grandTotal || 0,
+        totalPrice: o?.totals?.grandTotal || 0,
+        stationId: 'main' as const,
+        status: 'pending' as const
+      }
+    ];
 
-      const stationItems = safeItems.filter((item) => {
-        const matchesStation =
-          activeStation === 'All Stations' ||
-          !item.stationId ||
-          item.stationId.toLowerCase() === activeStation.toLowerCase();
-        
-        const itemStatus = item.status || 'pending';
-        return matchesStation && (itemStatus === 'pending' || itemStatus === 'preparing');
-      });
-
-      return {
-        id: o.id,
-        tableNumber: o.tableNumber || `Table ${o.tableId || '1'}`,
-        tableId: o.tableId || 'unknown_table',
-        customerName: o.customerName || 'Guest Customer',
-        grandTotal: o.totals?.grandTotal || 0,
-        status: o.status || 'pending',
-        items: stationItems,
-        elapsedSeconds: elapsedMap[o.id] ?? 120,
-        priority: safeItems.some((it) => it.notes)
-      };
-    })
-    .filter((o) => {
-      const allItemsReady = o.items.length > 0 && o.items.every(i => i.status === 'ready' || i.status === 'served');
-      return o.items.length > 0 && !allItemsReady && o.status !== 'completed' && o.status !== 'archived' && o.status !== 'ready';
+    const stationItems = safeItems.filter((item) => {
+      const matchesStation =
+        activeStation === 'All Stations' ||
+        !item.stationId ||
+        item.stationId.toLowerCase() === activeStation.toLowerCase();
+      return matchesStation;
     });
 
-  // Completed Kitchen Orders Section (Fulfilled Prep History)
-  const completedKdsOrders: KDSOrder[] = orders
-    .map((o) => {
-      let safeItems = Array.isArray(o?.items) && o.items.length > 0 ? o.items : [
-        {
-          id: `item_kds_${o.id}`,
-          menuItemId: 'item_01',
-          name: 'Chef\'s Special Order Dish',
-          quantity: 1,
-          unitPrice: o?.totals?.grandTotal || 0,
-          totalPrice: o?.totals?.grandTotal || 0,
-          stationId: 'main' as const,
-          status: 'ready' as const
-        }
-      ];
+    return {
+      id: o.id,
+      tableNumber: o.tableNumber || `Table ${o.tableId || '1'}`,
+      tableId: o.tableId || 'unknown_table',
+      customerName: o.customerName || 'Guest Customer',
+      grandTotal: o.totals?.grandTotal || 0,
+      status: o.status || 'pending',
+      items: stationItems,
+      elapsedSeconds: elapsedMap[o.id] ?? 120,
+      priority: safeItems.some((it) => it.notes)
+    };
+  };
 
-      const stationItems = safeItems.filter((item) => {
-        const matchesStation =
-          activeStation === 'All Stations' ||
-          !item.stationId ||
-          item.stationId.toLowerCase() === activeStation.toLowerCase();
-        return matchesStation;
-      });
+  const allKdsOrders = orders.map(mapToKdsOrder);
 
-      return {
-        id: o.id,
-        tableNumber: o.tableNumber || `Table ${o.tableId || '1'}`,
-        tableId: o.tableId || 'unknown_table',
-        customerName: o.customerName || 'Guest Customer',
-        grandTotal: o.totals?.grandTotal || 0,
-        status: o.status || 'ready',
-        items: stationItems,
-        elapsedSeconds: elapsedMap[o.id] ?? 180,
-        priority: false
-      };
-    })
-    .filter((o) => {
-      const allItemsReady = o.items.length > 0 && o.items.every(i => i.status === 'ready' || i.status === 'served');
-      return o.status === 'ready' || o.status === 'completed' || o.status === 'served' || allItemsReady;
-    });
+  // 1. New Orders: status is 'pending', 'preparing', 'accepted'
+  const newKdsOrders = allKdsOrders.filter(
+    (o) => o.status === 'pending' || o.status === 'preparing' || o.status === 'accepted'
+  );
+
+  // 2. Ready Orders: status is 'ready'
+  const readyKdsOrders = allKdsOrders.filter((o) => o.status === 'ready');
+
+  // 3. Served Orders: status is 'served'
+  const servedKdsOrders = allKdsOrders.filter((o) => o.status === 'served');
+
+  // 4. Completed Kitchen Orders: status is 'completed' or 'archived'
+  const completedKdsOrders = allKdsOrders.filter(
+    (o) => o.status === 'completed' || o.status === 'archived'
+  );
 
   const categoriesList = ['All Categories', ...Array.from(new Set(menuItems.map((item) => item.categoryId).filter(Boolean)))];
 
@@ -456,6 +479,160 @@ export const KitchenDashboard: React.FC = () => {
       (selectedStockFilter === 'Limited' && item.stockStatus === 'limited');
     return matchesSearch && matchesCategory && matchesStock;
   });
+
+  const renderOrderCard = (order: any, column: 'new' | 'ready' | 'served' | 'completed') => {
+    const isLate = order.elapsedSeconds > 180;
+    return (
+      <div
+        key={order.id}
+        className={`border bg-zinc-900/40 rounded-2xl flex flex-col justify-between overflow-hidden shadow-md transition duration-200 hover:border-zinc-800 ${
+          order.priority && column === 'new'
+            ? 'border-red-500/30'
+            : isLate && column === 'new'
+            ? 'border-orange-500/30'
+            : column === 'ready'
+            ? 'border-emerald-500/25'
+            : column === 'served'
+            ? 'border-blue-500/25'
+            : 'border-zinc-850 opacity-80 hover:opacity-100'
+        }`}
+      >
+        {/* Ticket Header */}
+        <div className="p-4 border-b border-zinc-900 bg-zinc-900/30 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${
+              column === 'new' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+              column === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+              column === 'served' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+              'bg-zinc-850 text-zinc-300 border-zinc-800'
+            }`}>
+              {order.tableNumber}
+            </span>
+            <span className="text-xs font-bold text-white">
+              #{order.id.slice(-6).toUpperCase()}
+            </span>
+          </div>
+          {column === 'new' && (
+            <div className="flex items-center gap-1 text-[11px]">
+              <Clock className={`h-3.5 w-3.5 ${isLate ? 'text-red-500 animate-pulse' : 'text-amber-400'}`} />
+              <span className={`font-mono font-bold ${isLate ? 'text-red-500' : 'text-amber-400'}`}>
+                {formatTimer(order.elapsedSeconds)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Header Metadata */}
+        <div className="px-4 py-2 bg-zinc-950/40 border-b border-zinc-900/60 flex items-center justify-between text-[10px] font-medium text-zinc-500">
+          <div>
+            <span>Guest:</span> <span className="text-zinc-300 font-semibold ml-1">{order.customerName}</span>
+          </div>
+          <div>
+            <span>Bill:</span> <span className="text-emerald-405 font-bold ml-1">₹{order.grandTotal.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Items List */}
+        <div className="p-4 space-y-3 flex-1">
+          {order.items.map((item: any) => {
+            const isItemReady = item.status === 'ready' || item.status === 'served';
+            return (
+              <div key={item.id} className="flex justify-between items-start border-b border-zinc-900/40 pb-3 last:border-b-0 last:pb-0">
+                <div className="space-y-1 max-w-[70%]">
+                  <p className={`text-xs font-bold leading-snug ${isItemReady ? 'text-zinc-500 line-through font-normal' : 'text-white'}`}>
+                    {item.quantity}x {item.name}
+                  </p>
+                  {item.selectedVariant && (
+                    <span className="inline-block text-[9px] font-medium bg-zinc-800/60 text-zinc-400 px-2 py-0.5 rounded-full font-mono">
+                      {item.selectedVariant.name}
+                    </span>
+                  )}
+                  {item.notes && (
+                    <p className="text-[9px] text-orange-400 bg-orange-950/10 border border-orange-500/10 px-2 py-1 rounded-lg leading-relaxed mt-1">
+                      💡 {item.notes}
+                    </p>
+                  )}
+                </div>
+
+                {column === 'new' && (
+                  <button
+                    onClick={() => handleCompleteItem(order.id, item.id)}
+                    disabled={isItemReady}
+                    className={`flex items-center gap-1 py-1 px-2 text-[9px] font-bold uppercase rounded-lg border transition cursor-pointer ${
+                      isItemReady
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                        : 'bg-zinc-900 border-zinc-800 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white'
+                    }`}
+                  >
+                    <Flame className="h-3 w-3 text-orange-400 animate-pulse" />
+                    {isItemReady ? 'READY' : 'DONE'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Action Bar Footer */}
+        <div className="p-3 bg-zinc-950/40 border-t border-zinc-900 flex items-center justify-between gap-2 text-xs">
+          <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
+            order.status === 'pending' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+            order.status === 'preparing' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+            order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+            order.status === 'served' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+            'bg-zinc-800 text-zinc-300 border-zinc-700'
+          }`}>
+            {order.status}
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            {column === 'new' && order.status === 'pending' && (
+              <button
+                onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg shadow-md transition cursor-pointer"
+              >
+                ACCEPT
+              </button>
+            )}
+            {column === 'new' && order.status === 'preparing' && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                  className="p-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800 rounded-lg transition cursor-pointer"
+                  title="Reset to Pending"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
+                  className="bg-orange-500 hover:bg-orange-600 text-white font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg shadow-md transition cursor-pointer"
+                >
+                  READY
+                </button>
+              </div>
+            )}
+            {(column === 'ready' || column === 'served') && (
+              <button
+                onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
+                className="bg-zinc-800 hover:bg-zinc-750 text-emerald-400 border border-zinc-750 font-black text-[9px] uppercase px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+              >
+                COMPLETE
+              </button>
+            )}
+            {column === 'completed' && (
+              <button
+                onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
+                className="flex items-center gap-1 text-[9px] font-black uppercase text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+              >
+                <RotateCcw className="h-3 w-3" />
+                RE-OPEN
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout 
@@ -480,6 +657,22 @@ export const KitchenDashboard: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                  {(isMockMode || profile?.role === 'super-admin') && tenantList.length > 0 && (
+                    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-850 px-3.5 py-1.5 rounded-xl">
+                      <span className="text-[10px] text-zinc-555 font-bold uppercase tracking-wider">Tenant:</span>
+                      <select
+                        value={selectedTenantId}
+                        onChange={(e) => setSelectedTenantId(e.target.value)}
+                        className="bg-transparent text-xs text-white focus:outline-none cursor-pointer font-extrabold"
+                      >
+                        {tenantList.map((t) => (
+                          <option key={t.id} value={t.id} className="bg-zinc-950 text-zinc-300">
+                            {t.name} ({t.id.slice(7)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex bg-zinc-950 p-1 border border-zinc-900 rounded-xl">
                     {['All Statuses', 'In Stock', 'Limited', 'Out of Stock'].map((filter) => {
                       const isActive = selectedStockFilter === filter;
@@ -634,256 +827,147 @@ export const KitchenDashboard: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="space-y-10">
-            {/* Active Kitchen Tickets Section */}
-            <div className="space-y-6">
-              {/* Header Stations Bar */}
-              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border-b border-zinc-900 pb-4">
-                <div className="flex flex-wrap gap-2">
-                  {['All Stations', 'Pizza', 'Grill', 'Drinks', 'Dessert'].map((station) => {
-                    const isActive = activeStation === station;
-                    return (
-                      <button
-                        key={station}
-                        onClick={() => setActiveStation(station)}
-                        className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition cursor-pointer ${
-                          isActive
-                            ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/15'
-                            : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-205'
-                        }`}
-                      >
-                        {station}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={playBellSound}
-                    className="p-2 border border-zinc-800 text-zinc-455 hover:text-white rounded-xl hover:bg-zinc-900 transition"
-                    title="Test Sound Bell"
-                  >
-                    <Bell className="h-4.5 w-4.5" />
-                  </button>
-                  <span className="text-xs text-zinc-500 font-medium">
-                    Active Queue: {kdsOrders.length} tickets
-                  </span>
-                </div>
-              </div>
-
-              {/* KDS Active Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {kdsOrders.map((order) => {
-                  const isLate = order.elapsedSeconds > 180;
+          <div className="space-y-6">
+            {/* Header Stations Bar */}
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border-b border-zinc-900 pb-4">
+              <div className="flex flex-wrap gap-2">
+                {['All Stations', 'Pizza', 'Grill', 'Drinks', 'Dessert'].map((station) => {
+                  const isActive = activeStation === station;
                   return (
-                    <div
-                      key={order.id}
-                      className={`border bg-zinc-900/10 rounded-3xl flex flex-col justify-between overflow-hidden shadow-lg transition duration-200 ${
-                        order.priority
-                          ? 'border-red-500/30'
-                          : isLate
-                          ? 'border-orange-500/30'
-                          : 'border-amber-500/25'
+                    <button
+                      key={station}
+                      onClick={() => setActiveStation(station)}
+                      className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition cursor-pointer ${
+                        isActive
+                          ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/15'
+                          : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200'
                       }`}
                     >
-                      {/* Ticket Header */}
-                      <div className="p-5 border-b border-zinc-900 bg-zinc-900/30 flex justify-between items-center">
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-xs font-black bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-xl">
-                            {order.tableNumber}
-                          </span>
-                          <span className="text-sm font-extrabold text-white">
-                            #{order.id.slice(-6).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Clock className={`h-4 w-4 ${isLate ? 'text-red-500 animate-pulse' : 'text-amber-400'}`} />
-                          <span className={`font-mono font-bold text-sm ${isLate ? 'text-red-500' : 'text-amber-400'}`}>
-                            {formatTimer(order.elapsedSeconds)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Ticket Header Metadata */}
-                      <div className="px-5 py-2.5 bg-zinc-950/40 border-b border-zinc-900/60 flex items-center justify-between text-[11px] font-medium text-zinc-400">
-                        <div>
-                          <span className="text-zinc-550">Customer:</span> <span className="text-zinc-200 font-semibold ml-1">{order.customerName}</span>
-                        </div>
-                        <div>
-                          <span className="text-zinc-550">Total Bill:</span> <span className="text-emerald-400 font-extrabold ml-1">₹{order.grandTotal.toFixed(2)}</span>
-                        </div>
-                      </div>
-
-                      {/* Ticket Items */}
-                      <div className="p-5 space-y-4 flex-1">
-                        {order.items.map((item) => (
-                          <div key={item.id} className="flex justify-between items-center border-b border-zinc-900/40 pb-4 last:border-b-0 last:pb-0">
-                            <div className="space-y-1.5 max-w-[70%]">
-                              <p className="text-sm font-bold text-white leading-snug">
-                                {item.quantity}x {item.name}
-                              </p>
-                              {item.selectedVariant && (
-                                <span className="inline-block text-[10px] font-medium bg-zinc-800 text-zinc-400 px-2.5 py-0.5 rounded-full font-mono">
-                                  {item.selectedVariant.name}
-                                </span>
-                              )}
-                              {item.notes && (
-                                <p className="text-[10px] text-orange-400 bg-orange-950/15 border border-orange-500/10 px-2 py-1.5 rounded-lg leading-relaxed mt-1">
-                                  💡 Note: {item.notes}
-                                </p>
-                              )}
-                            </div>
-
-                            <button
-                              onClick={() => handleCompleteItem(order.id, item.id)}
-                              className="flex items-center gap-1.5 py-2 px-3.5 text-xs font-bold uppercase rounded-xl border border-zinc-800 bg-zinc-900 text-white hover:bg-emerald-500 hover:border-emerald-500 hover:text-white transition cursor-pointer shadow-md"
-                            >
-                              <Flame className="h-3.5 w-3.5 text-orange-400" />
-                              DONE
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Parent Order Status Controls */}
-                      <div className="p-4 bg-zinc-950/40 border-t border-zinc-900 flex items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] uppercase font-bold text-zinc-500">Status:</span>
-                          <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
-                            order.status === 'pending' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                            order.status === 'preparing' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
-                            order.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                            'bg-zinc-800 text-zinc-300 border-zinc-700'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {order.status === 'pending' && (
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/10 transition cursor-pointer"
-                            >
-                              ACCEPT ORDER
-                            </button>
-                          )}
-                          {order.status === 'preparing' && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
-                                className="p-2 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl transition cursor-pointer"
-                                title="Reset to Pending"
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleUpdateOrderStatus(order.id, 'ready')}
-                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-orange-500/10 transition cursor-pointer"
-                              >
-                                MARK READY
-                              </button>
-                            </div>
-                          )}
-                          {(order.status === 'ready' || order.status === 'completed') && (
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                              className="bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-zinc-700 font-bold text-xs px-4 py-2 rounded-xl transition cursor-pointer"
-                            >
-                              COMPLETE TICKET
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                      {station}
+                    </button>
                   );
                 })}
+              </div>
 
-                {kdsOrders.length === 0 && (
-                  <div className="col-span-full border border-dashed border-zinc-850 py-16 text-center text-zinc-500 rounded-3xl">
-                    <CheckCircle className="h-10 w-10 mx-auto text-emerald-500/20 mb-4 animate-bounce" />
-                    <p className="text-sm font-semibold text-zinc-300">All active tickets clear!</p>
-                    <p className="text-xs text-zinc-550 mt-1">Check the completed orders section below for fulfilled prep history</p>
+              <div className="flex items-center gap-3">
+                {(isMockMode || profile?.role === 'super-admin') && tenantList.length > 0 && (
+                  <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-850 px-3.5 py-1.5 rounded-xl">
+                    <span className="text-[10px] text-zinc-550 font-bold uppercase tracking-wider">Tenant Selector:</span>
+                    <select
+                      value={selectedTenantId}
+                      onChange={(e) => setSelectedTenantId(e.target.value)}
+                      className="bg-transparent text-xs text-white focus:outline-none cursor-pointer font-extrabold"
+                    >
+                      {tenantList.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-zinc-950 text-zinc-300">
+                          {t.name} ({t.id.slice(7)})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
+                <button
+                  onClick={playBellSound}
+                  className="p-2 border border-zinc-850 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-900 transition"
+                  title="Test Sound Bell"
+                >
+                  <Bell className="h-4 w-4" />
+                </button>
+                <span className="text-xs text-zinc-500 font-medium">
+                  Total Active: {newKdsOrders.length + readyKdsOrders.length + servedKdsOrders.length} tickets
+                </span>
               </div>
             </div>
 
-            {/* Below Section: Completed Kitchen Orders Archive */}
-            <div className="pt-8 border-t border-zinc-900 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl">
-                    <CheckCircle className="h-5 w-5" />
+            {/* 4-Column Board for KDS */}
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+              {/* Column 1: New Orders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-red-500/5 border border-red-500/10 p-3 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <Flame className="h-4 w-4 text-red-400 animate-pulse" />
+                    <span className="text-xs font-black uppercase text-red-400 tracking-wider">New Orders</span>
                   </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-white tracking-tight">Completed Kitchen Orders</h3>
-                    <p className="text-xs text-zinc-500">Fulfilled kitchen prep tickets and ready dish history</p>
-                  </div>
+                  <span className="text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 px-2.5 py-0.5 rounded-lg">
+                    {newKdsOrders.length}
+                  </span>
                 </div>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-xl">
-                  {completedKdsOrders.length} Fulfilled Tickets
-                </span>
+                
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                  {newKdsOrders.map((order) => renderOrderCard(order, 'new'))}
+                  {newKdsOrders.length === 0 && (
+                    <div className="border border-dashed border-zinc-850 py-10 text-center text-zinc-550 rounded-2xl text-[11px]">
+                      No new orders in queue
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {completedKdsOrders.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {completedKdsOrders.map((order) => (
-                    <div
-                      key={`completed_${order.id}`}
-                      className="border border-zinc-850 bg-zinc-900/40 rounded-3xl p-5 space-y-4 opacity-80 hover:opacity-100 transition duration-200"
-                    >
-                      <div className="flex justify-between items-center border-b border-zinc-850 pb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-extrabold bg-zinc-800 text-zinc-300 px-2.5 py-1 rounded-xl">
-                            {order.tableNumber}
-                          </span>
-                          <span className="text-sm font-bold text-white">#{order.id.slice(-6).toUpperCase()}</span>
-                        </div>
-                        <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-lg border ${
-                          order.status === 'served'
-                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        }`}>
-                          {order.status === 'served' ? 'SERVED TO TABLE' : 'READY / DONE'}
-                        </span>
-                      </div>
+              {/* Column 2: Ready Orders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">Ready Orders</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-lg">
+                    {readyKdsOrders.length}
+                  </span>
+                </div>
 
-                      <div className="space-y-2 text-xs">
-                        {order.items.map((item) => {
-                          const isServed = item.status === 'served' || order.status === 'served';
-                          return (
-                            <div key={item.id} className="flex justify-between items-center text-zinc-300">
-                              <span className="font-semibold">{item.quantity}x {item.name}</span>
-                              <span className={`text-[10px] font-bold flex items-center gap-1 ${
-                                isServed ? 'text-blue-400' : 'text-emerald-400'
-                              }`}>
-                                <CheckCircle className="h-3 w-3" /> {isServed ? 'SERVED' : 'READY'}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="pt-3 border-t border-zinc-850 flex justify-between items-center text-xs">
-                        <span className="text-zinc-500 text-[11px] font-mono">Bill: ₹{order.grandTotal.toFixed(2)}</span>
-                        <button
-                          onClick={() => handleUpdateOrderStatus(order.id, 'preparing')}
-                          className="flex items-center gap-1.5 text-[10px] font-bold uppercase text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          Re-Open Ticket
-                        </button>
-                      </div>
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                  {readyKdsOrders.map((order) => renderOrderCard(order, 'ready'))}
+                  {readyKdsOrders.length === 0 && (
+                    <div className="border border-dashed border-zinc-850 py-10 text-center text-zinc-550 rounded-2xl text-[11px]">
+                      No ready orders waiting
                     </div>
-                  ))}
+                  )}
                 </div>
-              ) : (
-                <div className="border border-dashed border-zinc-850 py-12 text-center text-zinc-500 rounded-3xl">
-                  <p className="text-xs font-semibold text-zinc-400">No completed kitchen tickets in current session</p>
+              </div>
+
+              {/* Column 3: Served Orders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-blue-500/5 border border-blue-500/10 p-3 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-blue-400" />
+                    <span className="text-xs font-black uppercase text-blue-400 tracking-wider">Served Orders</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-0.5 rounded-lg">
+                    {servedKdsOrders.length}
+                  </span>
                 </div>
-              )}
+
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                  {servedKdsOrders.map((order) => renderOrderCard(order, 'served'))}
+                  {servedKdsOrders.length === 0 && (
+                    <div className="border border-dashed border-zinc-850 py-10 text-center text-zinc-550 rounded-2xl text-[11px]">
+                      No served orders yet
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 4: Completed Kitchen Orders */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-zinc-800/10 border border-zinc-850 p-3 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-zinc-400" />
+                    <span className="text-xs font-black uppercase text-zinc-450 tracking-wider">Completed Orders</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-zinc-850 text-zinc-400 border border-zinc-800 px-2.5 py-0.5 rounded-lg">
+                    {completedKdsOrders.length}
+                  </span>
+                </div>
+
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                  {completedKdsOrders.map((order) => renderOrderCard(order, 'completed'))}
+                  {completedKdsOrders.length === 0 && (
+                    <div className="border border-dashed border-zinc-850 py-10 text-center text-zinc-550 rounded-2xl text-[11px]">
+                      No completed orders in history
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

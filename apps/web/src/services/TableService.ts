@@ -1,12 +1,12 @@
 import { db } from '../lib/firebase.js';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { TableRepository } from '@restaurant-qr/infra';
 import type { Table } from '@restaurant-qr/core';
 
 const MOCK_TABLES_KEY = 'restaurant_qr_mock_tables_db';
 
 export class TableService {
   /**
-   * Provisions a dining table with native crypto UUID or Firestore auto ID
+   * Provisions a dining table with native crypto UUID or TableRepository
    */
   static async createTable(tenantId: string, number: string, seatingCapacity: number, isMockMode: boolean): Promise<Table> {
     const tableId = `tbl_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`;
@@ -30,8 +30,8 @@ export class TableService {
       return newTable;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'tables', tableId);
-    await setDoc(docRef, newTable);
+    const repo = new TableRepository(db);
+    await repo.save(tenantId, newTable);
     return newTable;
   }
 
@@ -49,8 +49,8 @@ export class TableService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'tables', tableId);
-    await deleteDoc(docRef);
+    const repo = new TableRepository(db);
+    await repo.delete(tenantId, tableId);
   }
 
   /**

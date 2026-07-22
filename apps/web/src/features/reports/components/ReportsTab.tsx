@@ -3,8 +3,11 @@ import { Download, TrendingUp, IndianRupee, ShoppingBag, CreditCard, Award, Perc
 import type { Order } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 
+import { useOrders } from '../../../hooks/useRealtimeData';
+
 interface ReportsTabProps {
-  orders?: Order[];
+  tenantId: string;
+  isMockMode: boolean;
   currencySymbol?: string;
 }
 
@@ -14,8 +17,9 @@ interface TopDishReport {
   revenue: number;
 }
 
-export const ReportsTab: React.FC<ReportsTabProps> = ({ orders = [], currencySymbol = '₹' }) => {
-  const safeOrders = Array.isArray(orders) ? orders : [];
+export const ReportsTab: React.FC<ReportsTabProps> = ({ tenantId, isMockMode, currencySymbol = '₹' }) => {
+  const { orders, loading } = useOrders(tenantId, isMockMode);
+  const safeOrders: Order[] = Array.isArray(orders) ? orders : [];
 
   const totalOrders = safeOrders.length;
   const totalRevenue = safeOrders.reduce((sum, o) => sum + (o?.totals?.grandTotal || 0), 0);
@@ -101,6 +105,17 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ orders = [], currencySym
       )
     }
   ];
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading operations report...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

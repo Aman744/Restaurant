@@ -81,9 +81,9 @@ export class StaffService {
     const userDocRef = doc(db, 'users', profile.uid).withConverter(UserConverter);
     await setDoc(userDocRef, profile);
 
-    // Also index under tenant's staff subcollection
-    const tenantStaffRef = doc(db, 'tenants', tenantId, 'staff', profile.uid).withConverter(UserConverter);
-    await setDoc(tenantStaffRef, profile);
+    // Also index under tenant's users subcollection
+    const tenantUsersRef = doc(db, 'tenants', tenantId, 'users', profile.uid).withConverter(UserConverter);
+    await setDoc(tenantUsersRef, profile);
 
     return profile;
   }
@@ -104,7 +104,7 @@ export class StaffService {
 
     // Delete Firestore profile documents
     await deleteDoc(doc(db, 'users', uid));
-    await deleteDoc(doc(db, 'tenants', tenantId, 'staff', uid));
+    await deleteDoc(doc(db, 'tenants', tenantId, 'users', uid));
 
     // Queue Firebase Authentication user deletion
     try {

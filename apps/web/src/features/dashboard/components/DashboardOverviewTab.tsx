@@ -5,21 +5,27 @@ import { RevenueCard } from './RevenueCard';
 import { KitchenLoadCard } from './KitchenLoadCard';
 import { OccupancyCard } from './OccupancyCard';
 import { TodaysOrdersCard } from './TodaysOrdersCard';
-import type { Order, Table } from '@restaurant-qr/core';
+import type { Order } from '@restaurant-qr/core';
+import { useOrders, useTables } from '../../../hooks/useRealtimeData';
 
 interface DashboardOverviewTabProps {
-  orders?: Order[];
-  tables?: Table[];
+  tenantId: string;
+  isMockMode: boolean;
   currencySymbol?: string;
 }
 
 export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
-  orders = [],
-  tables = [],
+  tenantId,
+  isMockMode,
   currencySymbol = '₹'
 }) => {
   const [feedViewMode, setFeedViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedFeedOrder, setSelectedFeedOrder] = useState<Order | null>(null);
+
+  const { orders, loading: ordersLoading } = useOrders(tenantId, isMockMode);
+  const { tables, loading: tablesLoading } = useTables(tenantId, isMockMode);
+
+  const loading = ordersLoading || tablesLoading;
 
   const safeOrders = Array.isArray(orders) ? orders : [];
   const safeTables = Array.isArray(tables) ? tables : [];
@@ -55,6 +61,35 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
   const preparingOrders = safeOrders.filter((o) => o?.status === 'preparing' || o?.status === 'accepted').length;
   const occupiedTables = safeTables.filter((t) => t?.status === 'occupied').length;
 
+  const revenueChangePercent = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayEnd = new Date(todayStart.getTime() - 1);
+
+    let todaySum = 0;
+    let yesterdaySum = 0;
+
+    safeOrders.forEach((o) => {
+      if (!o) return;
+      const date = parseDate(o.createdAt);
+      if (date >= todayStart) {
+        todaySum += o.totals?.grandTotal || 0;
+      } else if (date >= yesterdayStart && date <= yesterdayEnd) {
+        yesterdaySum += o.totals?.grandTotal || 0;
+      }
+    });
+
+    let percent = 0;
+    if (yesterdaySum > 0) {
+      percent = Math.round(((todaySum - yesterdaySum) / yesterdaySum) * 1000) / 10;
+    } else if (todaySum > 0) {
+      percent = 100;
+    }
+    return percent;
+  }, [safeOrders]);
+
   const getStatusBadgeClass = (status?: string) => {
     switch (status) {
       case 'pending':
@@ -82,6 +117,17 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
     if (hours < 24) return `${hours}h ago • ${timeString}`;
     return `${d.toLocaleDateString()} • ${timeString}`;
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading operations command center...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -121,7 +167,7 @@ export const DashboardOverviewTab: React.FC<DashboardOverviewTabProps> = ({
 
       {/* Metric Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
-        <RevenueCard totalRevenue={totalRevenue} currencySymbol={currencySymbol} />
+        <RevenueCard totalRevenue={totalRevenue} revenueChangePercent={revenueChangePercent} currencySymbol={currencySymbol} />
         <KitchenLoadCard preparingOrdersCount={preparingOrders} />
         <OccupancyCard occupiedTablesCount={occupiedTables} totalTablesCount={safeTables.length} />
         <TodaysOrdersCard totalOrdersCount={safeOrders.length} />

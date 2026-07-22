@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
-import { doc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, firebaseConfig } from '../lib/firebase.js';
 import { TenantConverter } from '@restaurant-qr/infra';
 import type { Tenant } from '@restaurant-qr/core';
@@ -59,6 +59,23 @@ export class TenantService {
 
       credentialsDb[lowerEmail] = mockUser;
       localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
+
+      // Also create mock profile under Tenant database (restaurant_qr_mock_staff_db)
+      const mockProfile = {
+        uid: mockUid,
+        email: adminEmail.toLowerCase(),
+        displayName: adminName || adminEmail.split('@')[0].toUpperCase(),
+        role: 'restaurant-admin',
+        tenantId: newTenantId,
+        permissions: ['dashboard', 'menu', 'tables', 'staff', 'reports', 'inventory', 'reservations', 'settings'],
+        createdAt: new Date().toISOString()
+      };
+
+      const rawStaff = localStorage.getItem('restaurant_qr_mock_staff_db');
+      const staffList = rawStaff ? JSON.parse(rawStaff) : [];
+      const updatedStaff = staffList.filter((s: any) => s.uid !== mockUid);
+      updatedStaff.push(mockProfile);
+      localStorage.setItem('restaurant_qr_mock_staff_db', JSON.stringify(updatedStaff));
     }
 
     const newTenant: Tenant = {
@@ -201,8 +218,8 @@ export class TenantService {
           // Write/update user in global /users collection
           await setDoc(doc(db, 'users', adminUid), adminUserProfile, { merge: true });
 
-          // Write/update user in tenant staff subcollection
-          await setDoc(doc(db, 'tenants', tenantId, 'staff', adminUid), adminUserProfile, { merge: true });
+          // Write/update user in tenant users subcollection
+          await setDoc(doc(db, 'tenants', tenantId, 'users', adminUid), adminUserProfile, { merge: true });
         } else {
           throw new Error(`The email address "${adminEmail}" is already registered in Firebase Auth with a different password. Please enter the correct password for "${adminEmail}" or use a new email address.`);
         }
@@ -229,8 +246,8 @@ export class TenantService {
       // 1. Delete main tenant document in Firebase
       await deleteDoc(doc(db, 'tenants', tenantId));
 
-      // 2. Cascade delete subcollections (menu_items, tables, orders, staff, settings)
-      const subCols = ['menu_items', 'tables', 'orders', 'staff', 'settings'];
+      // 2. Cascade delete subcollections (menu_items, tables, orders, users, settings)
+      const subCols = ['menu_items', 'tables', 'orders', 'users', 'settings'];
       for (const colName of subCols) {
         try {
           const subSnap = await getDocs(collection(db, 'tenants', tenantId, colName));
@@ -250,8 +267,9 @@ export class TenantService {
           const deletionRef = doc(db, 'auth_deletion_queue', u.id);
           userBatch.set(deletionRef, {
             uid: u.id,
+            tenantId: tenantId,
             email: u.data().email || '',
-            deletedAt: serverTimestamp(),
+            deletedAt: new Date(),
             status: 'pending'
           });
         });
@@ -286,19 +304,41 @@ export class TenantService {
       }
       return;
     } else {
+      // 1. Fetch user details first to gather email and tenant association details
+      let userEmail = '';
+      let userTenantId = '';
+      try {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          userEmail = data.email || '';
+          userTenantId = data.tenantId || '';
+        }
+      } catch (e) {
+        console.error('Error resolving user metadata before deletion:', e);
+      }
+
       const batch = writeBatch(db);
-      // Delete user profile document
+      
+      // 2. Delete global user profile document
       batch.delete(doc(db, 'users', uid));
       
-      // Queue Firebase Authentication user deletion
+      // 3. If user belongs to a tenant, delete from tenant users subcollection
+      if (userTenantId) {
+        batch.delete(doc(db, 'tenants', userTenantId, 'users', uid));
+      }
+      
+      // 4. Create request in /auth_deletion_queue matching StaffService schema
       batch.set(doc(db, 'auth_deletion_queue', uid), {
         uid,
-        deletedAt: serverTimestamp(),
+        tenantId: userTenantId || null,
+        email: userEmail,
+        deletedAt: new Date(),
         status: 'pending'
       });
       await batch.commit();
 
-      // If current logged-in user is deleting themselves, delete client-side Auth session
+      // 5. If current logged-in user is deleting themselves, delete client-side Auth session
       try {
         const authInstance = getAuth();
         if (authInstance.currentUser && authInstance.currentUser.uid === uid) {

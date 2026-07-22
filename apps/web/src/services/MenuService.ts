@@ -1,6 +1,6 @@
 import { db } from '../lib/firebase.js';
-import { doc, setDoc, deleteDoc, updateDoc, writeBatch, collection } from 'firebase/firestore';
-import { MenuItemConverter } from '@restaurant-qr/infra';
+import { doc, collection } from 'firebase/firestore';
+import { MenuRepository } from '@restaurant-qr/infra';
 import type { MenuItem } from '@restaurant-qr/core';
 import { CsvValidator, type CsvValidationResult } from '../utils/CsvValidator.js';
 
@@ -8,7 +8,7 @@ const MOCK_MENU_KEY = 'restaurant_qr_mock_menu_db';
 
 export class MenuService {
   /**
-   * Saves or updates a menu item using Firestore converters or local storage sandbox
+   * Saves or updates a menu item using MenuRepository or local storage sandbox
    */
   static async saveMenuItem(tenantId: string, item: MenuItem, isMockMode: boolean): Promise<void> {
     if (isMockMode) {
@@ -24,8 +24,8 @@ export class MenuService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'menu_items', item.id).withConverter(MenuItemConverter);
-    await setDoc(docRef, item, { merge: true });
+    const repo = new MenuRepository(db);
+    await repo.save(tenantId, item);
   }
 
   /**
@@ -43,8 +43,12 @@ export class MenuService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'menu_items', itemId);
-    await updateDoc(docRef, { stockStatus: nextStatus });
+    const repo = new MenuRepository(db);
+    const item = await repo.getById(tenantId, itemId);
+    if (item) {
+      item.stockStatus = nextStatus as any;
+      await repo.save(tenantId, item);
+    }
   }
 
   /**
@@ -61,26 +65,60 @@ export class MenuService {
       return;
     }
 
-    const docRef = doc(db, 'tenants', tenantId, 'menu_items', itemId);
-    await deleteDoc(docRef);
+    const repo = new MenuRepository(db);
+    await repo.delete(tenantId, itemId);
   }
 
   /**
-   * Validates and batch imports CSV items
+   * Validates and batch imports CSV items, avoiding duplicate items (same name & category)
    */
-  static async importCsv(tenantId: string, csvText: string, isMockMode: boolean): Promise<CsvValidationResult> {
+  static async importCsv(
+    tenantId: string,
+    csvText: string,
+    isMockMode: boolean,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<CsvValidationResult> {
     const validation = CsvValidator.validateMenuCsv(csvText);
     if (!validation.isValid) {
       return validation;
     }
 
-    const newItems: MenuItem[] = validation.validRows.map((row) => ({
+    // Load existing items to prevent duplicates
+    let existingItems: MenuItem[] = [];
+    if (isMockMode) {
+      const stored = localStorage.getItem(MOCK_MENU_KEY);
+      const parsed: MenuItem[] = stored ? JSON.parse(stored) : [];
+      existingItems = parsed.filter((m) => m.tenantId === tenantId);
+    } else {
+      const repo = new MenuRepository(db);
+      existingItems = await repo.listByTenant(tenantId);
+    }
+
+    const existingKeys = new Set(
+      existingItems.map((item) => `${item.categoryId.toLowerCase()}:${item.name.toLowerCase().trim()}`)
+    );
+
+    const validRowsToImport = validation.validRows.filter((row) => {
+      const key = `${row.categoryId.toLowerCase()}:${row.name.toLowerCase().trim()}`;
+      return !existingKeys.has(key);
+    });
+
+    if (validRowsToImport.length === 0) {
+      return {
+        ...validation,
+        validRows: [],
+        errors: [...validation.errors, 'All items in CSV already exist in the menu. Skipping duplicates.']
+      };
+    }
+
+    const newItems: MenuItem[] = validRowsToImport.map((row) => ({
       id: doc(collection(db, 'tenants', tenantId, 'menu_items')).id,
       tenantId,
       categoryId: row.categoryId,
       name: row.name,
       description: row.description,
       price: row.price,
+      priceMinor: Math.round(row.price * 100),
       images: ['https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80'],
       dietaryTags: row.dietaryTags,
       allergens: [],
@@ -92,17 +130,28 @@ export class MenuService {
     if (isMockMode) {
       const stored = localStorage.getItem(MOCK_MENU_KEY);
       const parsed: MenuItem[] = stored ? JSON.parse(stored) : [];
-      const updated = [...parsed, ...newItems];
+      const updated = [...parsed];
+      for (let i = 0; i < newItems.length; i++) {
+        updated.push(newItems[i]);
+        if (onProgress) {
+          onProgress(i + 1, newItems.length);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      }
       localStorage.setItem(MOCK_MENU_KEY, JSON.stringify(updated));
     } else {
-      const batch = writeBatch(db);
-      newItems.forEach((item) => {
-        const docRef = doc(db, 'tenants', tenantId, 'menu_items', item.id).withConverter(MenuItemConverter);
-        batch.set(docRef, item);
-      });
-      await batch.commit();
+      const repo = new MenuRepository(db);
+      for (let i = 0; i < newItems.length; i++) {
+        await repo.save(tenantId, newItems[i]);
+        if (onProgress) {
+          onProgress(i + 1, newItems.length);
+        }
+      }
     }
 
-    return validation;
+    return {
+      ...validation,
+      validRows: validRowsToImport
+    };
   }
 }

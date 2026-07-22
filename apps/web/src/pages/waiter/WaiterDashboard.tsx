@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
 import { Utensils, HelpCircle, AlertCircle, CheckCircle, Send, CreditCard, RotateCcw, Check, Clock } from 'lucide-react';
-import type { Table, Order, OrderItem, OrderStatus } from '@restaurant-qr/core';
+import type { Table, Order, OrderStatus } from '@restaurant-qr/core';
 import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useToast } from '../../components/shared/ToastContext';
 import { db } from '../../lib/firebase.js';
-import { doc, setDoc, onSnapshot, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, onSnapshot, collection, deleteDoc, getDocs } from 'firebase/firestore';
+import { OrderRepository } from '@restaurant-qr/infra';
+import { EventService } from '../../services/EventService.js';
 
 interface WaiterAlert {
   id: string;
@@ -41,6 +43,43 @@ export const WaiterDashboard: React.FC = () => {
   const sidebarItems = [
     { name: 'Service Board', path: '/waiter', icon: Utensils },
   ];
+
+  const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState(tenantId);
+
+  useEffect(() => {
+    setSelectedTenantId(tenantId);
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (isMockMode) {
+      const stored = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const list = parsed.map((t: any) => ({ id: t.id, name: t.name }));
+          if (!list.some((t: any) => t.id === 'tenant_dev_123')) {
+            list.unshift({ id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' });
+          }
+          setTenantList(list);
+        } catch (e) {}
+      } else {
+        setTenantList([
+          { id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' }
+        ]);
+      }
+    } else {
+      const getTenants = async () => {
+        try {
+          const colRef = collection(db, 'tenants');
+          const snap = await getDocs(colRef);
+          const list = snap.docs.map((doc: any) => ({ id: doc.id, name: doc.data().name }));
+          setTenantList(list);
+        } catch (err) {}
+      };
+      getTenants();
+    }
+  }, [isMockMode]);
 
   const [tables, setTables] = useState<Table[]>([]);
   const [alerts, setAlerts] = useState<WaiterAlert[]>([]);
@@ -77,7 +116,7 @@ export const WaiterDashboard: React.FC = () => {
         window.removeEventListener('storage', loadLocalTables);
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'tables');
+      const colRef = collection(db, 'tenants', selectedTenantId, 'tables');
       const unsubscribe = onSnapshot(colRef, (snap: any) => {
         if (active) {
           const list = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as Table));
@@ -98,7 +137,7 @@ export const WaiterDashboard: React.FC = () => {
         active = false;
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   // 2. Subscribe to Waiter Service Alerts
   useEffect(() => {
@@ -128,7 +167,7 @@ export const WaiterDashboard: React.FC = () => {
         window.removeEventListener('storage', loadLocalAlerts);
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'waiter_alerts');
+      const colRef = collection(db, 'tenants', selectedTenantId, 'waiter_alerts');
       const unsubscribe = onSnapshot(colRef, (snap: any) => {
         if (active) {
           const list = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as WaiterAlert));
@@ -143,7 +182,7 @@ export const WaiterDashboard: React.FC = () => {
         active = false;
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   // 3. Subscribe to all orders
   useEffect(() => {
@@ -155,7 +194,8 @@ export const WaiterDashboard: React.FC = () => {
         if (cached) {
           try {
             const list = JSON.parse(cached) as Order[];
-            if (active) setOrders(list);
+            const tenantOrders = list.filter((o) => o.tenantId === selectedTenantId);
+            if (active) setOrders(tenantOrders);
           } catch (e) {}
         }
       };
@@ -168,19 +208,9 @@ export const WaiterDashboard: React.FC = () => {
         window.removeEventListener('storage', loadOrders);
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'orders');
-      const unsubscribe = onSnapshot(colRef, async (snap: any) => {
-        if (active) {
-          const list: Order[] = [];
-          for (const d of snap.docs) {
-            const header = d.data();
-            const itemsCol = collection(db, 'tenants', tenantId, 'orders', d.id, 'order_items');
-            const itemsSnap = await getDocs(itemsCol);
-            const items = itemsSnap.docs.map((it: any) => ({ id: it.id, ...it.data() } as OrderItem));
-            list.push({ id: d.id, ...header, items } as Order);
-          }
-          if (active) setOrders(list);
-        }
+      const repo = new OrderRepository(db);
+      const unsubscribe = repo.subscribeAll(selectedTenantId, (list) => {
+        if (active) setOrders(list);
       });
 
       return () => {
@@ -188,7 +218,7 @@ export const WaiterDashboard: React.FC = () => {
         active = false;
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   // Handle Table status changes
   const handleUpdateTableStatus = async (tableId: string, nextStatus: Table['status']) => {
@@ -202,15 +232,27 @@ export const WaiterDashboard: React.FC = () => {
         try {
           const parsed = JSON.parse(cached);
           const updated = parsed.map((t: any) =>
-            t.id === tableId ? { ...t, status: nextStatus } : t
+            t.id === tableId
+              ? { ...t, status: nextStatus, ...(nextStatus === 'available' ? { activeOrderId: null } : {}) }
+              : t
           );
           localStorage.setItem(MOCK_TABLES_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
+          if (nextStatus === 'available') {
+            await EventService.logEvent(selectedTenantId, 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, true);
+          }
         } catch (e) {}
       }
     } else {
       try {
-        await setDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: nextStatus }, { merge: true });
+        const payload: any = { status: nextStatus };
+        if (nextStatus === 'available') {
+          payload.activeOrderId = null;
+        }
+        await setDoc(doc(db, 'tenants', selectedTenantId, 'tables', tableId), payload, { merge: true });
+        if (nextStatus === 'available') {
+          await EventService.logEvent(selectedTenantId, 'table.cleaned', tableId, profile?.uid || 'waiter', { previousStatus: 'cleaning' }, false);
+        }
       } catch (err) {
         console.error('Failed to save table status:', err);
       }
@@ -233,7 +275,7 @@ export const WaiterDashboard: React.FC = () => {
       }
     } else {
       try {
-        await deleteDoc(doc(db, 'tenants', tenantId, 'waiter_alerts', alertId));
+        await deleteDoc(doc(db, 'tenants', selectedTenantId, 'waiter_alerts', alertId));
       } catch (err) {
         console.error('Failed to dismiss alert:', err);
       }
@@ -242,6 +284,21 @@ export const WaiterDashboard: React.FC = () => {
 
   // Send Billing request to Cashier Console (http://localhost:5173/cashier)
   const handleSendToCashier = async (orderId: string, tableNumber: string) => {
+    // 1. Optimistic state update to instantly move the order to the "Sent to Cashier" section on screen
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id === orderId) {
+          return {
+            ...o,
+            billRequested: true,
+            requestedBillAt: new Date(),
+            payment: { ...o.payment, status: 'unpaid' as const }
+          };
+        }
+        return o;
+      })
+    );
+
     if (isMockMode) {
       const cached = localStorage.getItem(MOCK_ORDERS_KEY);
       if (cached) {
@@ -261,17 +318,27 @@ export const WaiterDashboard: React.FC = () => {
           });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
-        } catch (e) {}
+          toast.success(`Bill for ${tableNumber} sent to Cashier!`);
+          await EventService.logEvent(selectedTenantId, 'payment.requested', orderId, profile?.uid || 'waiter', { tableNumber }, true);
+        } catch (e) {
+          toast.error('Failed to update local storage');
+        }
       }
     } else {
       try {
-        await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { billRequested: true, requestedBillAt: new Date(), 'payment.status': 'unpaid', updatedAt: new Date() }, { merge: true });
-      } catch (err) {
+        await updateDoc(doc(db, 'tenants', selectedTenantId, 'orders', orderId), {
+          billRequested: true,
+          requestedBillAt: new Date(),
+          'payment.status': 'unpaid',
+          updatedAt: new Date()
+        });
+        toast.success(`Bill for ${tableNumber} sent to Cashier!`);
+        await EventService.logEvent(selectedTenantId, 'payment.requested', orderId, profile?.uid || 'waiter', { tableNumber }, false);
+      } catch (err: any) {
         console.error('Failed to send bill to cashier:', err);
+        toast.error(`Failed to send bill: ${err.message}`);
       }
     }
-
-    toast.success(`Bill for ${tableNumber} sent to Cashier!`);
   };
 
   // Update order status (delivering / completing)
@@ -300,13 +367,34 @@ export const WaiterDashboard: React.FC = () => {
           });
           localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(updated));
           window.dispatchEvent(new Event('storage'));
-        } catch (e) {}
+          toast.success(`Order status updated to ${nextStatus.toUpperCase()}!`);
+          if (nextStatus === 'served') {
+            await EventService.logEvent(selectedTenantId, 'order.served', orderId, profile?.uid || 'waiter', { previousStatus: 'ready' }, true);
+          }
+        } catch (e) {
+          toast.error('Failed to update local storage');
+        }
       }
     } else {
       try {
-        await setDoc(doc(db, 'tenants', tenantId, 'orders', orderId), { status: nextStatus, updatedAt: new Date() }, { merge: true });
-      } catch (err) {
+        const repo = new OrderRepository(db);
+        const order = await repo.getById(selectedTenantId, orderId);
+        if (order) {
+          order.status = nextStatus;
+          order.items = (order.items || []).map((i) => ({
+            ...i,
+            status: nextStatus === 'served' ? ('served' as const) : i.status
+          }));
+          order.updatedAt = new Date();
+          await repo.save(selectedTenantId, order);
+          toast.success(`Order status updated to ${nextStatus.toUpperCase()}!`);
+          if (nextStatus === 'served') {
+            await EventService.logEvent(selectedTenantId, 'order.served', orderId, profile?.uid || 'waiter', { previousStatus: 'ready' }, false);
+          }
+        }
+      } catch (err: any) {
         console.error('Failed to update order status:', err);
+        toast.error(`Failed to update order status: ${err.message}`);
       }
     }
   };
@@ -339,6 +427,18 @@ export const WaiterDashboard: React.FC = () => {
     return `${dateStr}, ${timeStr}`;
   };
 
+  const getMs = (dateVal: any): number => {
+    if (!dateVal) return 0;
+    if (typeof dateVal.toDate === 'function') {
+      return dateVal.toDate().getTime();
+    }
+    if (dateVal instanceof Date) {
+      return dateVal.getTime();
+    }
+    const parsed = new Date(dateVal);
+    return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  };
+
   // Categorize Sections (Sorted chronologically by date/time descending - newest first)
   const readyForDeliveryOrders = orders
     .filter((o) => {
@@ -347,7 +447,7 @@ export const WaiterDashboard: React.FC = () => {
       const allItemsReady = Array.isArray(o.items) && o.items.length > 0 && o.items.every((i) => i.status === 'ready' || i.status === 'served');
       return !isServed && !isBillSent && o.status !== 'completed' && o.status !== 'archived' && (o.status === 'ready' || allItemsReady);
     })
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    .sort((a, b) => getMs(b.createdAt) - getMs(a.createdAt));
 
   const currentlyServedOrders = orders
     .filter((o) => {
@@ -355,7 +455,7 @@ export const WaiterDashboard: React.FC = () => {
       const isPaid = o.payment?.status === 'paid' || o.status === 'completed';
       return o.status === 'served' && !isBillSent && !isPaid;
     })
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+    .sort((a, b) => getMs(b.updatedAt || b.createdAt) - getMs(a.updatedAt || a.createdAt));
 
   const sentToCashierOrders = orders
     .filter((o) => {
@@ -363,11 +463,11 @@ export const WaiterDashboard: React.FC = () => {
       const isPaid = o.payment?.status === 'paid' || o.status === 'completed' || o.status === 'archived';
       return isBillSent && !isPaid;
     })
-    .sort((a, b) => new Date((b as any).requestedBillAt || b.updatedAt || 0).getTime() - new Date((a as any).requestedBillAt || a.updatedAt || 0).getTime());
+    .sort((a, b) => getMs((b as any).requestedBillAt || b.updatedAt) - getMs((a as any).requestedBillAt || a.updatedAt));
 
   const completedOrders = orders
     .filter((o) => o.status === 'completed' || o.payment?.status === 'paid')
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+    .sort((a, b) => getMs(b.updatedAt || b.createdAt) - getMs(a.updatedAt || a.createdAt));
 
   const resolvedTables = tables.map((t) => {
     const hasActiveOrder = orders.some(
@@ -415,15 +515,34 @@ export const WaiterDashboard: React.FC = () => {
             ))}
           </div>
 
-          <a
-            href="/cashier"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 transition cursor-pointer"
-          >
-            <CreditCard className="h-4 w-4" />
-            Open Cashier POS
-          </a>
+          <div className="flex items-center gap-2">
+            {(isMockMode || profile?.role === 'super-admin') && tenantList.length > 0 && (
+              <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-850 px-3.5 py-2 rounded-xl">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Tenant:</span>
+                <select
+                  value={selectedTenantId}
+                  onChange={(e) => setSelectedTenantId(e.target.value)}
+                  className="bg-transparent text-xs text-white focus:outline-none cursor-pointer font-extrabold"
+                >
+                  {tenantList.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-zinc-950 text-zinc-300">
+                      {t.name} ({t.id.slice(7)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <a
+              href="/cashier"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2 rounded-xl hover:bg-emerald-500/20 transition cursor-pointer"
+            >
+              <CreditCard className="h-4 w-4" />
+              Open Cashier POS
+            </a>
+          </div>
         </div>
 
         {/* SECTION 1: Dining Tables Status */}
@@ -769,8 +888,18 @@ export const WaiterDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-amber-500/20">
                     <button
                       onClick={() => {
-                        handleSendToCashier(a.id, a.tableNumber);
-                        handleDismissAlert(a.id);
+                        const activeOrder = orders.find(
+                          (o) => (o.tableNumber === a.tableNumber || `Table ${o.tableId}` === a.tableNumber) &&
+                                 o.status !== 'completed' &&
+                                 o.status !== 'archived' &&
+                                 o.payment?.status !== 'paid'
+                        );
+                        if (activeOrder) {
+                          handleSendToCashier(activeOrder.id, a.tableNumber);
+                          handleDismissAlert(a.id);
+                        } else {
+                          toast.error(`No active order found for ${a.tableNumber}!`);
+                        }
                       }}
                       className="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer text-center flex items-center justify-center gap-1.5 shadow-md"
                     >

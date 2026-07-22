@@ -28,8 +28,9 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
-import type { Tenant } from '@restaurant-qr/core';
+import type { Tenant, UserProfile } from '@restaurant-qr/core';
 import { useToast } from '../../components/shared/ToastContext';
+import { useConfirm } from '../../components/shared/ConfirmContext';
 
 const MOCK_TENANTS_KEY = 'restaurant_qr_mock_tenants_db';
 
@@ -37,19 +38,24 @@ export const SuperAdminDashboard: React.FC = () => {
   const location = useLocation();
   const { isMockMode } = useAuth();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<{ id: string; name: string } | null>(null);
   
   const sidebarItems = [
     { name: 'Dashboard', path: '/super-admin', icon: LayoutDashboard },
     { name: 'Tenants', path: '/super-admin/tenants', icon: Users },
+    { name: 'Users', path: '/super-admin/users', icon: ShieldCheck },
     { name: 'Subscriptions', path: '/super-admin/subscriptions', icon: CreditCard },
     { name: 'Settings', path: '/super-admin/settings', icon: Settings },
   ];
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [activeOrdersCount, setActiveOrdersCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+  const [activeUserSubTab, setActiveUserSubTab] = useState<'super-admin' | 'restaurant-admin' | 'other'>('super-admin');
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [isProvisioning, setIsProvisioning] = useState(false);
@@ -87,6 +93,7 @@ export const SuperAdminDashboard: React.FC = () => {
     let active = true;
 
     if (isMockMode) {
+      setDbConnected(true);
       // Mock persistence
       const stored = localStorage.getItem(MOCK_TENANTS_KEY);
       if (stored) {
@@ -104,21 +111,86 @@ export const SuperAdminDashboard: React.FC = () => {
           localStorage.removeItem(MOCK_TENANTS_KEY);
         }
       }
+
+      const storedCreds = localStorage.getItem('restaurant_qr_mock_credentials_db');
+      if (storedCreds) {
+        try {
+          const parsed = JSON.parse(storedCreds);
+          const users: UserProfile[] = Object.values(parsed).map((u: any) => ({
+            uid: u.uid || u.id,
+            email: u.email,
+            displayName: u.displayName || u.email.split('@')[0].toUpperCase(),
+            role: u.claims?.role || u.role || 'restaurant-admin',
+            tenantId: u.claims?.tenantId || u.tenantId,
+            createdAt: u.createdAt ? new Date(u.createdAt) : new Date()
+          }));
+          // Add default super admin
+          users.unshift({
+            uid: 'superadmin_uid_123',
+            email: 'admin@antigravity.com',
+            displayName: 'Antigravity Super Admin',
+            role: 'super-admin',
+            createdAt: new Date()
+          });
+          setUsersList(users);
+        } catch (e) {}
+      } else {
+        setUsersList([
+          {
+            uid: 'superadmin_uid_123',
+            email: 'admin@antigravity.com',
+            displayName: 'Antigravity Super Admin',
+            role: 'super-admin',
+            createdAt: new Date()
+          }
+        ]);
+      }
       setLoading(false);
     } else {
       // Real-time Firestore sync
       const colRef = collection(db, 'tenants').withConverter(TenantConverter);
       const unsubscribe = onSnapshot(colRef, (snap: any) => {
+        setDbConnected(true);
         if (active) {
           setTenants(snap.docs.map((d: any) => d.data()));
           setLoading(false);
         }
       }, (err: any) => {
         console.error('Firestore tenants subscription error:', err);
+        setDbConnected(false);
         if (active) setLoading(false);
       });
+
+      const usersCol = collection(db, 'users');
+      const unsubscribeUsers = onSnapshot(usersCol, (snap: any) => {
+        setDbConnected(true);
+        if (active) {
+          const fetchedUsers = snap.docs.map((d: any) => {
+            const data = d.data();
+            const toDate = (val: any): Date => {
+              if (!val) return new Date();
+              if (typeof val.toDate === 'function') return val.toDate();
+              return new Date(val);
+            };
+            return {
+              uid: d.id,
+              email: data.email || '',
+              displayName: data.displayName || '',
+              role: data.role || 'restaurant-admin',
+              tenantId: data.tenantId || undefined,
+              createdAt: toDate(data.createdAt)
+            } as UserProfile;
+          });
+          setUsersList(fetchedUsers);
+        }
+      }, (err: any) => {
+        console.error('Firestore users subscription error:', err);
+        setDbConnected(false);
+      });
+
       return () => {
         unsubscribe();
+        unsubscribeUsers();
         active = false;
       };
     }
@@ -248,6 +320,23 @@ export const SuperAdminDashboard: React.FC = () => {
     }
   };
 
+  const handleDeleteUser = (user: UserProfile) => {
+    if (user.role === 'super-admin' && usersList.filter(u => u.role === 'super-admin').length <= 1) {
+      toast.error('Cannot delete the last Super Admin account.');
+      return;
+    }
+
+    confirm({
+      title: 'Delete User Account?',
+      message: `Are you sure you want to permanently delete "${user.displayName}" (${user.email})? This will delete their access profile and request user account deletion from Firebase Authentication.`,
+      confirmText: 'Delete User',
+      onConfirm: async () => {
+        await tenantService.deleteUser(user.uid);
+        toast.success(`User "${user.displayName}" deleted successfully.`);
+      }
+    });
+  };
+
   const handleToggleStatus = async (id: string) => {
     const tenant = tenants.find(t => t.id === id);
     if (!tenant) return;
@@ -360,7 +449,7 @@ export const SuperAdminDashboard: React.FC = () => {
     localStorage.setItem('impersonate_tenantId', targetTenantId);
     localStorage.setItem('impersonate_tenantName', tenantName);
     toast.success(`Entering Impersonation mode for restaurant: "${tenantName}" as Restaurant Admin.`);
-    setTimeout(() => { window.location.href = '/admin'; }, 1000);
+    setTimeout(() => { window.location.href = '#/admin'; }, 1000);
   };
 
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
@@ -436,6 +525,7 @@ export const SuperAdminDashboard: React.FC = () => {
   const path = location.pathname;
   let activeTab = 'overview';
   if (path.endsWith('/tenants')) activeTab = 'tenants';
+  else if (path.endsWith('/users')) activeTab = 'users';
   else if (path.endsWith('/subscriptions')) activeTab = 'subscriptions';
   else if (path.endsWith('/settings')) activeTab = 'settings';
 
@@ -467,9 +557,13 @@ export const SuperAdminDashboard: React.FC = () => {
               <span className="text-[10px] text-zinc-500 font-medium">Synced across all active portals</span>
             </div>
             <div className="border border-zinc-900 bg-zinc-900/30 p-5 rounded-2xl">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">System Platform Status</p>
-              <h3 className="text-2xl font-bold text-emerald-400 mt-1.5">Optimal</h3>
-              <span className="text-[10px] text-emerald-450 font-medium">All telemetry functions running</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Database Connection</p>
+              <h3 className={`text-2xl font-bold mt-1.5 ${dbConnected === true ? 'text-emerald-400' : dbConnected === false ? 'text-red-400' : 'text-amber-400'}`}>
+                {dbConnected === true ? 'Connected' : dbConnected === false ? 'Disconnected' : 'Connecting...'}
+              </h3>
+              <span className="text-[10px] text-zinc-500 font-medium">
+                {isMockMode ? 'Sandbox LocalStorage DB' : 'Google Cloud Firestore'}
+              </span>
             </div>
           </div>
 
@@ -663,6 +757,120 @@ export const SuperAdminDashboard: React.FC = () => {
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'users' ? (
+        <div className="space-y-6">
+          <div className="border border-zinc-900 bg-zinc-900/20 rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-zinc-900 flex justify-between items-center bg-zinc-900/10">
+              <div>
+                <h3 className="text-base font-bold text-white">System User Registry</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">Manage SaaS Administrators, Restaurant Owners, and Staff access permissions</p>
+              </div>
+            </div>
+
+            {/* Sub-Tabs for Super Admin, Restaurant Admin, and Other accounts */}
+            <div className="flex border-b border-zinc-900 px-6 pt-3 bg-zinc-950/20 gap-6">
+              <button
+                onClick={() => setActiveUserSubTab('super-admin')}
+                className={`text-xs font-bold pb-3 border-b-2 transition-all duration-200 relative ${
+                  activeUserSubTab === 'super-admin'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-350'
+                }`}
+              >
+                Super Admins
+              </button>
+              <button
+                onClick={() => setActiveUserSubTab('restaurant-admin')}
+                className={`text-xs font-bold pb-3 border-b-2 transition-all duration-200 relative ${
+                  activeUserSubTab === 'restaurant-admin'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-350'
+                }`}
+              >
+                Restaurant Admins
+              </button>
+              <button
+                onClick={() => setActiveUserSubTab('other')}
+                className={`text-xs font-bold pb-3 border-b-2 transition-all duration-200 relative ${
+                  activeUserSubTab === 'other'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-zinc-500 hover:text-zinc-350'
+                }`}
+              >
+                Other Staff & Users
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-900 text-zinc-500 text-xs font-bold uppercase tracking-wider">
+                    <th className="px-6 py-4">User Details</th>
+                    <th className="px-6 py-4">Assigned System Role</th>
+                    <th className="px-6 py-4">Tenant Association</th>
+                    <th className="px-6 py-4">Registered Date</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-900/60 text-sm">
+                  {usersList.filter((u) => {
+                    if (activeUserSubTab === 'super-admin') return u.role === 'super-admin';
+                    if (activeUserSubTab === 'restaurant-admin') return u.role === 'restaurant-admin';
+                    return u.role !== 'super-admin' && u.role !== 'restaurant-admin';
+                  }).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-10 text-center text-zinc-500 text-xs">
+                        No registered accounts found in this category.
+                      </td>
+                    </tr>
+                  ) : (
+                    usersList.filter((u) => {
+                      if (activeUserSubTab === 'super-admin') return u.role === 'super-admin';
+                      if (activeUserSubTab === 'restaurant-admin') return u.role === 'restaurant-admin';
+                      return u.role !== 'super-admin' && u.role !== 'restaurant-admin';
+                    }).map((u) => {
+                      const matchTenant = tenants.find((t) => t.id === u.tenantId);
+                      return (
+                        <tr key={u.uid} className="hover:bg-zinc-900/10 transition">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-white text-xs">{u.displayName}</div>
+                            <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{u.email}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize ${
+                              u.role === 'super-admin'
+                                ? 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+                                : u.role === 'restaurant-admin'
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                            }`}>
+                              {u.role.replace('-', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-zinc-400 text-xs font-semibold">
+                            {matchTenant ? matchTenant.name : u.role === 'super-admin' ? 'Global Platform' : 'Independent User'}
+                          </td>
+                          <td className="px-6 py-4 text-zinc-500 text-xs">
+                            {new Date(u.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => handleDeleteUser(u)}
+                              className="p-2 border border-zinc-800 hover:border-red-500/30 text-zinc-500 hover:text-red-400 hover:bg-red-500/5 transition rounded-xl"
+                              title="Delete User Account"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

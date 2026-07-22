@@ -54,7 +54,16 @@ function App() {
             }
           }
         } catch (e) {
-          console.error('Failed to load system theme settings:', e);
+          console.warn('Failed to load system theme settings, falling back to local defaults:', e);
+          const cachedWhiteLabel = localStorage.getItem('restaurant_qr_system_whitelabel');
+          if (cachedWhiteLabel) {
+            try {
+              const parsed = JSON.parse(cachedWhiteLabel);
+              defaultTheme = parsed.defaultTheme || defaultTheme;
+              primaryColor = parsed.primaryColor || primaryColor;
+              fontFamily = parsed.fontFamily || fontFamily;
+            } catch (err) {}
+          }
         }
       }
 

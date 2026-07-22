@@ -131,11 +131,43 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
     try {
       if (isMockMode) {
         localStorage.setItem(`restaurant_qr_settings_${tenantId}`, JSON.stringify(settingsData));
+        
+        // Update tenant details cache for header and sidebar branding
+        localStorage.setItem(`restaurant_qr_mock_tenant_info_${tenantId}`, JSON.stringify({
+          name: restaurantName,
+          logoUrl: logoUrl || undefined
+        }));
+
+        // Also update in the global mock tenants database list
+        const cachedTenants = localStorage.getItem('restaurant_qr_mock_tenants_db');
+        if (cachedTenants) {
+          try {
+            const tenantsList = JSON.parse(cachedTenants);
+            const matchIndex = tenantsList.findIndex((t: any) => t.id === tenantId);
+            if (matchIndex > -1) {
+              tenantsList[matchIndex] = {
+                ...tenantsList[matchIndex],
+                name: restaurantName,
+                logoUrl: logoUrl || undefined
+              };
+              localStorage.setItem('restaurant_qr_mock_tenants_db', JSON.stringify(tenantsList));
+            }
+          } catch (e) {}
+        }
+
         toast.success('Restaurant settings & Brand Logo saved successfully!');
       } else {
         await setDoc(doc(db, 'tenants', tenantId, 'settings', 'general'), settingsData, { merge: true });
+        await setDoc(doc(db, 'tenants', tenantId), {
+          name: restaurantName,
+          logoUrl: logoUrl || null
+        }, { merge: true });
         toast.success('Restaurant settings updated in production!');
       }
+      // Reload page to refresh context branding across header and sidebar layout
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err: any) {
       toast.error(`Failed to save settings: ${err.message}`);
     } finally {
@@ -466,7 +498,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
                 <span className="text-[10px] text-emerald-400 font-mono">80mm Paper Width</span>
               </span>
 
-              <div className="bg-white text-black font-mono p-6 rounded-2xl text-[11px] shadow-2xl space-y-3 border border-gray-300 max-w-sm mx-auto">
+              <div id="thermal-receipt-preview" className="bg-white text-black font-mono p-6 rounded-2xl text-[11px] shadow-2xl space-y-3 border border-gray-300 max-w-sm mx-auto">
                 <div className="text-center font-bold border-b border-dashed border-gray-400 pb-3 space-y-1">
                   {logoUrl && (
                     <img src={logoUrl} alt="Logo" className="max-h-12 max-w-[140px] w-auto h-auto object-contain mx-auto mb-1.5" />
@@ -491,32 +523,32 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">1x Truffle Burger</span>
-                    <span>1 x ₹450.00</span>
-                    <span className="font-bold">₹450.00</span>
+                    <span>1 x {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}450.00</span>
+                    <span className="font-bold">{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}450.00</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="font-medium">1x Fresh Mint Soda</span>
-                    <span>1 x ₹120.00</span>
-                    <span className="font-bold">₹120.00</span>
+                    <span>1 x {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}120.00</span>
+                    <span className="font-bold">{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}120.00</span>
                   </div>
                 </div>
 
                 <div className="border-t border-dashed border-gray-400 pt-2 space-y-1 text-[11px]">
                   <div className="flex justify-between text-gray-600">
                     <span>Subtotal:</span>
-                    <span>₹570.00</span>
+                    <span>{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}570.00</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>GST Tax ({taxRate}%):</span>
-                    <span>₹{(570 * (taxRate / 100)).toFixed(2)}</span>
+                    <span>{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}{(570 * (taxRate / 100)).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span>Service Charge ({serviceChargeRate}%):</span>
-                    <span>₹{(570 * (serviceChargeRate / 100)).toFixed(2)}</span>
+                    <span>{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}{(570 * (serviceChargeRate / 100)).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-black text-sm text-black pt-1.5 border-t border-gray-300">
                     <span>GRAND TOTAL:</span>
-                    <span>₹{(570 * (1 + (taxRate + serviceChargeRate) / 100)).toFixed(2)}</span>
+                    <span>{currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹'}{(570 * (1 + (taxRate + serviceChargeRate) / 100)).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -539,7 +571,78 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ tenantId, isMockMode }
             </button>
 
             <button
-              onClick={() => window.print()}
+              onClick={() => {
+                const receiptElement = document.getElementById('thermal-receipt-preview');
+                if (!receiptElement) return;
+                const iframe = document.createElement('iframe');
+                iframe.style.position = 'absolute';
+                iframe.style.width = '0px';
+                iframe.style.height = '0px';
+                iframe.style.border = 'none';
+                document.body.appendChild(iframe);
+                const docObj = iframe.contentWindow?.document;
+                if (!docObj) return;
+                docObj.open();
+                docObj.write(`
+                  <html>
+                    <head>
+                      <title>Receipt Test Print</title>
+                      <style>
+                        @page { size: 80mm auto; margin: 0; }
+                        body {
+                          font-family: monospace;
+                          font-size: 11px;
+                          color: black;
+                          background: white;
+                          padding: 10px;
+                          margin: 0;
+                          width: 80mm;
+                        }
+                        .text-center { text-align: center; }
+                        .font-bold { font-weight: bold; }
+                        .font-black { font-weight: 900; }
+                        .font-semibold { font-weight: 600; }
+                        .uppercase { text-transform: uppercase; }
+                        .tracking-wider { letter-spacing: 0.05em; }
+                        .text-xs { font-size: 10px; }
+                        .text-sm { font-size: 12px; }
+                        .text-gray-500 { color: #6b7280; }
+                        .text-gray-600 { color: #4b5563; }
+                        .border-b { border-bottom: 1px dotted #000; padding-bottom: 4px; margin-bottom: 4px; }
+                        .border-t { border-top: 1px dotted #000; padding-top: 4px; margin-top: 4px; }
+                        .border-dashed { border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+                        .py-1 { padding-top: 4px; padding-bottom: 4px; }
+                        .pb-1 { padding-bottom: 4px; }
+                        .pb-3 { padding-bottom: 12px; }
+                        .pt-2 { padding-top: 8px; }
+                        .pt-1.5 { padding-top: 6px; }
+                        .mb-1.5 { margin-bottom: 6px; }
+                        .flex { display: flex; }
+                        .justify-between { justify-content: space-between; }
+                        .space-y-1 > * + * { margin-top: 4px; }
+                        .space-y-1.5 > * + * { margin-top: 6px; }
+                        .space-y-3 > * + * { margin-top: 12px; }
+                        .space-y-0.5 > * + * { margin-top: 2px; }
+                        img { max-height: 48px; max-width: 140px; display: block; margin: 0 auto 6px auto; }
+                        .italic { font-style: italic; }
+                      </style>
+                    </head>
+                    <body>
+                      \${receiptElement.innerHTML}
+                      <script>
+                        window.onload = function() {
+                          window.focus();
+                          window.print();
+                          setTimeout(function() {
+                            window.frameElement.remove();
+                          }, 100);
+                        };
+                      </script>
+                    </body>
+                  </html>
+                `);
+                docObj.close();
+              }}
               className="py-3 px-4 bg-zinc-850 hover:bg-zinc-800 text-zinc-200 font-bold text-xs uppercase tracking-wider rounded-xl border border-zinc-750 transition cursor-pointer flex items-center justify-center gap-2"
             >
               <Printer className="h-4 w-4 text-emerald-400" />

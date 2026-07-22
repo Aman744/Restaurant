@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ProtectedRoute } from '../components/shared/ProtectedRoute';
 import { AccessDenied } from '../components/shared/AccessDenied';
+import { NotFound } from '../components/shared/NotFound';
 import { LoginPortal } from '../pages/login/LoginPortal';
 import { SuperAdminDashboard } from '../pages/super-admin/SuperAdminDashboard';
 import { RestaurantAdminDashboard } from '../pages/admin/RestaurantAdminDashboard';
@@ -153,6 +154,14 @@ export const AppRouter: React.FC = () => {
       />
       <Route
         path="/super-admin/tenants"
+        element={
+          <ProtectedRoute allowedRoles={['super-admin']}>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/super-admin/users"
         element={
           <ProtectedRoute allowedRoles={['super-admin']}>
             <SuperAdminDashboard />
@@ -350,7 +359,8 @@ export const AppRouter: React.FC = () => {
 
       {/* Fallback Pages */}
       <Route path="/403" element={<AccessDenied />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/404" element={<NotFound />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

@@ -8,18 +8,32 @@ import { useToast } from '../../../components/shared/ToastContext';
 import { StaffService } from '../../../services/StaffService';
 import { AddStaffModal } from './AddStaffModal';
 
+import { useStaff } from '../../../hooks/useRealtimeData';
+
 interface StaffTabProps {
   tenantId: string;
-  staff: UserProfile[];
   isMockMode: boolean;
 }
 
-export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, staff, isMockMode }) => {
+import { useUserProfile } from '../../../features/auth/context/UserContext.js';
+
+export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
+  const { staff, loading } = useStaff(tenantId, isMockMode);
   const { setAddModalOpen } = useStaffStore();
   const { confirm } = useConfirm();
   const toast = useToast();
+  const { profile } = useUserProfile();
 
   const handleDeleteStaff = (member: UserProfile) => {
+    // Security check: Managers cannot delete admins, super-admins, or other managers
+    const isManager = profile?.role === 'manager';
+    const isTargetProtected = member.role === 'restaurant-admin' || member.role === 'super-admin' || member.role === 'manager';
+
+    if (isManager && isTargetProtected) {
+      toast.error('Permission Denied: Managers cannot modify Admin or Super Admin accounts.');
+      return;
+    }
+
     confirm({
       title: 'Delete Staff Member?',
       message: `Are you sure you want to remove ${member.displayName} (${member.email})?`,
@@ -64,19 +78,39 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, staff, isMockMode 
     },
     {
       header: 'Actions',
-      cell: (s) => (
-        <div className="flex justify-end">
-          <button
-            onClick={() => handleDeleteStaff(s)}
-            className="p-1.5 border border-zinc-800 hover:border-red-500/30 rounded-lg text-zinc-400 hover:text-red-400"
-            title="Remove Staff"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )
+      cell: (s) => {
+        const isManager = profile?.role === 'manager';
+        const isTargetProtected = s.role === 'restaurant-admin' || s.role === 'super-admin' || s.role === 'manager';
+        
+        if (isManager && isTargetProtected) {
+          return <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">Protected</span>;
+        }
+
+        return (
+          <div className="flex justify-end">
+            <button
+              onClick={() => handleDeleteStaff(s)}
+              className="p-1.5 border border-zinc-800 hover:border-red-500/30 rounded-lg text-zinc-400 hover:text-red-400"
+              title="Remove Staff"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        );
+      }
     }
   ];
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading staff roster...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

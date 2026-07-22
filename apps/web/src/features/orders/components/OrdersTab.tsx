@@ -8,19 +8,20 @@ import { useUserProfile } from '../../../features/auth/context/UserContext';
 import { useConfirm } from '../../../components/shared/ConfirmContext';
 import { useTenant } from '../../../features/auth/context/TenantContext';
 
+import { useOrders } from '../../../hooks/useRealtimeData';
+
 interface OrdersTabProps {
   tenantId: string;
-  orders?: Order[];
   isMockMode: boolean;
   currencySymbol?: string;
 }
 
 export const OrdersTab: React.FC<OrdersTabProps> = ({
   tenantId,
-  orders = [],
   isMockMode,
   currencySymbol = '₹'
 }) => {
+  const { orders, loading } = useOrders(tenantId, isMockMode);
   const { ordersFilter, setOrdersFilter } = useOrderStore();
   const { profile } = useUserProfile();
   const { tenant } = useTenant();
@@ -158,6 +159,17 @@ export const OrdersTab: React.FC<OrdersTabProps> = ({
         return 'bg-zinc-800 text-zinc-300 border-zinc-700';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading orders feed...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

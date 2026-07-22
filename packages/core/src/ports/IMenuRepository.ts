@@ -5,4 +5,5 @@ export interface IMenuRepository {
   save(tenantId: string, item: MenuItem): Promise<void>;
   delete(tenantId: string, itemId: string): Promise<void>;
   listByTenant(tenantId: string): Promise<MenuItem[]>;
+  subscribeMenu(tenantId: string, callback: (items: MenuItem[]) => void): () => void;
 }

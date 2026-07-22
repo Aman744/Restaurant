@@ -1,36 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
     // ─── Helper: safe lookup of user doc for role/tenantId ─────────────────
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-
     function isAuthenticated() {
       return request.auth != null;
     }
-
     // Check custom claims first (set via Admin SDK), fall back to Firestore user doc
     function userRole() {
       return request.auth.token.get('role', getUserData().get('role', null));
     }
-
     function userTenantId() {
       return request.auth.token.get('tenantId', getUserData().get('tenantId', null));
     }
-
     function isSuperAdmin() {
       return isAuthenticated() && userRole() == 'super-admin';
     }
-
     function ownsTenant(tenantId) {
       return isAuthenticated() && (
         isSuperAdmin() ||
         userTenantId() == tenantId
       );
     }
-
     // ─── /users/{uid} ────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read: if isAuthenticated();
@@ -40,7 +33,6 @@ service cloud.firestore {
       );
       allow delete: if isSuperAdmin();
     }
-
     // ─── /tenants/{tenantId} ─────────────────────────────────────────────────
     // Super Admin manages tenant root documents.
     // Restaurant staff can read their own tenant doc.
@@ -49,7 +41,7 @@ service cloud.firestore {
       allow create, update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
 
-      // ─── Menu Items (Public Read for Customers) ────────────────────────
+      // ─── Publicly readable menu items ──────────────────────────────────
       match /menu_items/{itemId} {
         allow read: if true;
         allow write: if isAuthenticated() && (
@@ -62,9 +54,9 @@ service cloud.firestore {
         );
       }
 
-      // ─── Tables (Public Read for Customers to resolve table name) ──────
+      // ─── Publicly readable tables ──────────────────────────────────────
       match /tables/{tableId} {
-        allow read: if true;
+        allow read, update: if true;
         allow write: if isAuthenticated() && (
           isSuperAdmin() ||
           userTenantId() == tenantId ||
@@ -75,10 +67,10 @@ service cloud.firestore {
         );
       }
 
-      // ─── Orders (Public Create for Customers, Auth Read/Write for Staff) 
+      // ─── Publicly createable orders (Customers submit orders, staff read/write)
       match /orders/{orderId} {
-        allow create: if true;
-        allow read, update, delete: if isAuthenticated() && (
+        allow create, get: if true;
+        allow list, update, delete: if isAuthenticated() && (
           isSuperAdmin() ||
           userTenantId() == tenantId ||
           (
@@ -100,7 +92,12 @@ service cloud.firestore {
         }
       }
 
-      // ─── All other subcollections (Staff, Inventory, Settings, etc.) ────
+      // ─── Publicly readable/writeable table sessions (for shared carts/split bills)
+      match /table_sessions/{sessionId} {
+        allow read, write: if true;
+      }
+
+      // ─── Other subcollections (Users, Settings, Inventory, Reservations, etc.)
       match /{document=**} {
         allow read, write: if isAuthenticated() && (
           isSuperAdmin() ||
@@ -112,17 +109,19 @@ service cloud.firestore {
         );
       }
     }
-
     // ─── /subscriptions ──────────────────────────────────────────────────────
     match /subscriptions/{docId} {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
     }
-
     // ─── /system_settings ────────────────────────────────────────────────────
     match /system_settings/{docId} {
       allow read: if true;
       allow write: if isSuperAdmin();
+    }
+    // ─── /auth_deletion_queue/{uid} ──────────────────────────────────────────
+    match /auth_deletion_queue/{uid} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

@@ -9,13 +9,15 @@ import { TableService } from '../../../services/TableService';
 import { AddTableModal } from './AddTableModal';
 import { ViewQrModal } from './ViewQrModal';
 
+import { useTables } from '../../../hooks/useRealtimeData';
+
 interface TablesTabProps {
   tenantId: string;
-  tables: Table[];
   isMockMode: boolean;
 }
 
-export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMode }) => {
+export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, isMockMode }) => {
+  const { tables, loading } = useTables(tenantId, isMockMode);
   const { setAddModalOpen, setViewingQrTable } = useTableStore();
   const { confirm } = useConfirm();
   const toast = useToast();
@@ -37,8 +39,12 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       message: `Are you sure you want to delete ${table.number}? Active orders associated with this table will be affected.`,
       confirmText: 'Delete Table',
       onConfirm: async () => {
-        await TableService.deleteTable(tenantId, table.id, isMockMode);
-        toast.success(`Deleted ${table.number}.`);
+        try {
+          await TableService.deleteTable(tenantId, table.id, isMockMode);
+          toast.success(`Deleted ${table.number}.`);
+        } catch (err: any) {
+          toast.error(err.message || `Failed to delete table ${table.number}.`);
+        }
       }
     });
   };
@@ -49,8 +55,12 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       message: 'Are you sure you want to remove all pre-existing demo tables? You can then add only your desired tables.',
       confirmText: 'Clear Tables',
       onConfirm: async () => {
-        await TableService.clearAllTables(tenantId, isMockMode);
-        toast.success('Cleared demo tables.');
+        try {
+          await TableService.clearAllTables(tenantId, isMockMode);
+          toast.success('Cleared demo tables.');
+        } catch (err: any) {
+          toast.error(err.message || 'Failed to clear demo tables.');
+        }
       }
     });
   };
@@ -155,7 +165,7 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
             <Copy className="h-3.5 w-3.5" />
           </button>
           <button
-            onClick={() => window.open(`${window.location.origin}/customer/table/${tenantId}/${t.id}`, '_blank')}
+            onClick={() => window.open(`${window.location.origin}/#/customer/table/${tenantId}/${t.id}`, '_blank')}
             className="p-2 border border-zinc-800 hover:border-zinc-700 bg-zinc-900/80 rounded-xl text-zinc-400 hover:text-emerald-400 transition shadow-sm"
             title="Test Table Menu"
           >
@@ -172,6 +182,17 @@ export const TablesTab: React.FC<TablesTabProps> = ({ tenantId, tables, isMockMo
       )
     }
   ];
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-zinc-400">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
+          <p className="text-xs font-semibold">Loading tables layout...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

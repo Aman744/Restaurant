@@ -3,10 +3,13 @@ import { DashboardLayout } from '../../components/shared/DashboardLayout';
 import { CreditCard, Receipt, CheckCircle, Printer, X, Bell, Clock, IndianRupee, FileText, Download } from 'lucide-react';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
+import { useUserProfile } from '../../features/auth/context/UserContext.js';
 import { useToast } from '../../components/shared/ToastContext';
 import { db } from '../../lib/firebase.js';
-import { collection, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { OrderRepository } from '@restaurant-qr/infra';
 import type { Order } from '@restaurant-qr/core';
+import { EventService } from '../../services/EventService.js';
 
 interface BillTicket {
   id: string;
@@ -22,6 +25,7 @@ interface BillTicket {
 export const CashierDashboard: React.FC = () => {
   const { tenant } = useTenant();
   const { isMockMode } = useAuth();
+  const { profile } = useUserProfile();
   const toast = useToast();
 
   const tenantId = tenant?.id || 'tenant_dev_123';
@@ -30,6 +34,43 @@ export const CashierDashboard: React.FC = () => {
     { name: 'Settlement Console', path: '/cashier', icon: CreditCard },
     { name: 'Invoices History', path: '/cashier/invoices', icon: FileText },
   ];
+
+  const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState(tenantId);
+
+  useEffect(() => {
+    setSelectedTenantId(tenantId);
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (isMockMode) {
+      const stored = localStorage.getItem('restaurant_qr_mock_tenants_db');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          const list = parsed.map((t: any) => ({ id: t.id, name: t.name }));
+          if (!list.some((t: any) => t.id === 'tenant_dev_123')) {
+            list.unshift({ id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' });
+          }
+          setTenantList(list);
+        } catch (e) {}
+      } else {
+        setTenantList([
+          { id: 'tenant_dev_123', name: 'My Restaurant (Sandbox)' }
+        ]);
+      }
+    } else {
+      const getTenants = async () => {
+        try {
+          const colRef = collection(db, 'tenants');
+          const snap = await getDocs(colRef);
+          const list = snap.docs.map((doc: any) => ({ id: doc.id, name: doc.data().name }));
+          setTenantList(list);
+        } catch (err) {}
+      };
+      getTenants();
+    }
+  }, [isMockMode]);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [settledOrders, setSettledOrders] = useState<Order[]>([]);
@@ -68,15 +109,14 @@ export const CashierDashboard: React.FC = () => {
               return { ...o, items };
             });
 
-            const isBillRequested = (o: any) => Boolean(o.billRequested === true || o.requestedBillAt);
+            const tenantOrders = normalized.filter((o) => o.tenantId === selectedTenantId);
 
-            const activeUnpaid = normalized.filter(
-              (o: any) => isBillRequested(o) &&
-                     o.payment?.status !== 'paid' && 
+            const activeUnpaid = tenantOrders.filter(
+              (o: any) => o.payment?.status !== 'paid' && 
                      o.status !== 'completed' && 
                      o.status !== 'archived'
             );
-            const paidOrders = normalized.filter((o) => o.payment?.status === 'paid' || o.status === 'completed');
+            const paidOrders = tenantOrders.filter((o) => o.payment?.status === 'paid' || o.status === 'completed');
             
             if (active) {
               setOrders(activeUnpaid);
@@ -100,54 +140,16 @@ export const CashierDashboard: React.FC = () => {
         clearInterval(interval);
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'orders');
-      const unsubscribe = onSnapshot(colRef, async (snap) => {
+      const repo = new OrderRepository(db);
+      const unsubscribe = repo.subscribeAll(selectedTenantId, (ordersList) => {
         const activeUnpaid: Order[] = [];
         const paidOrders: Order[] = [];
 
-        for (const docSnap of snap.docs) {
-          const data = docSnap.data();
-          const toDate = (val: any): Date => {
-            if (!val) return new Date();
-            if (typeof val.toDate === 'function') return val.toDate();
-            return new Date(val);
-          };
-
-          let items = Array.isArray(data.items) && data.items.length > 0 ? data.items : [];
-          if (items.length === 0) {
-            try {
-              const itemsCol = collection(db, 'tenants', tenantId, 'orders', docSnap.id, 'order_items');
-              const itemsSnap = await getDocs(itemsCol);
-              items = itemsSnap.docs.map((it: any) => ({ id: it.id, ...it.data() }));
-            } catch (err) {}
-          }
-
-          if (items.length === 0) {
-            items = [{
-              id: `item_fb_${docSnap.id}`,
-              menuItemId: 'item_01',
-              name: 'Chef Special Order Dish',
-              quantity: 1,
-              unitPrice: data.totals?.grandTotal || 50,
-              totalPrice: data.totals?.grandTotal || 50,
-              stationId: 'main',
-              status: 'ready'
-            }];
-          }
-
-          const orderObj = {
-            id: docSnap.id,
-            ...data,
-            items,
-            createdAt: toDate(data.createdAt),
-            updatedAt: toDate(data.updatedAt)
-          } as Order;
-
-          const isRequested = Boolean(data.billRequested === true || data.requestedBillAt);
-          if (isRequested && data.payment?.status !== 'paid' && data.status !== 'completed' && data.status !== 'archived') {
-            activeUnpaid.push(orderObj);
-          } else if (data.payment?.status === 'paid' || data.status === 'completed') {
-            paidOrders.push(orderObj);
+        for (const order of ordersList) {
+          if (order.payment?.status !== 'paid' && order.status !== 'completed' && order.status !== 'archived') {
+            activeUnpaid.push(order);
+          } else if (order.payment?.status === 'paid' || order.status === 'completed') {
+            paidOrders.push(order);
           }
         }
 
@@ -156,9 +158,6 @@ export const CashierDashboard: React.FC = () => {
           setSettledOrders(paidOrders);
           setLoading(false);
         }
-      }, (err) => {
-        console.error('Orders subscription failed:', err);
-        if (active) setLoading(false);
       });
 
       return () => {
@@ -166,7 +165,7 @@ export const CashierDashboard: React.FC = () => {
         unsubscribe();
       };
     }
-  }, [tenantId, isMockMode]);
+  }, [selectedTenantId, isMockMode]);
 
   const formatOrderDateTime = (dateVal?: any) => {
     if (!dateVal) return 'Just now';
@@ -186,6 +185,18 @@ export const CashierDashboard: React.FC = () => {
     return `${dateStr}, ${timeStr}`;
   };
 
+  const getMs = (dateVal: any): number => {
+    if (!dateVal) return 0;
+    if (typeof dateVal.toDate === 'function') {
+      return dateVal.toDate().getTime();
+    }
+    if (dateVal instanceof Date) {
+      return dateVal.getTime();
+    }
+    const parsed = new Date(dateVal);
+    return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  };
+
   // Map orders state to UI bills list structure
   const pendingBills: BillTicket[] = orders.map((o) => ({
     id: o.id,
@@ -197,14 +208,14 @@ export const CashierDashboard: React.FC = () => {
     itemsCount: (o.items || []).reduce((sum, it) => sum + (it.quantity || 1), 0),
     rawOrder: o
   })).sort((a, b) => {
-    const timeA = new Date((a.rawOrder as any).requestedBillAt || a.rawOrder.createdAt || 0).getTime();
-    const timeB = new Date((b.rawOrder as any).requestedBillAt || b.rawOrder.createdAt || 0).getTime();
+    const timeA = getMs((a.rawOrder as any).requestedBillAt || a.rawOrder.createdAt);
+    const timeB = getMs((b.rawOrder as any).requestedBillAt || b.rawOrder.createdAt);
     return timeB - timeA;
   });
 
   const sortedSettledOrders = [...settledOrders].sort((a, b) => {
-    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
-    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    const timeA = getMs(a.updatedAt || a.createdAt);
+    const timeB = getMs(b.updatedAt || b.createdAt);
     return timeB - timeA;
   });
 
@@ -284,7 +295,7 @@ export const CashierDashboard: React.FC = () => {
               const tablesList = JSON.parse(cachedTables);
               const updatedTables = tablesList.map((t: any) =>
                 t.id === tableId || t.number === selectedBill.tableNumber
-                  ? { ...t, status: 'cleaning' }
+                  ? { ...t, status: 'cleaning', activeOrderId: null }
                   : t
               );
               localStorage.setItem('restaurant_qr_mock_tables_db', JSON.stringify(updatedTables));
@@ -292,8 +303,9 @@ export const CashierDashboard: React.FC = () => {
           }
         }
         window.dispatchEvent(new Event('storage'));
+        await EventService.logEvent(selectedTenantId, 'payment.completed', billId, profile?.uid || 'cashier', { amount: selectedBill.total, method: paymentMode, tableId }, true);
       } else {
-        await updateDoc(doc(db, 'tenants', tenantId, 'orders', billId), {
+        await updateDoc(doc(db, 'tenants', selectedTenantId, 'orders', billId), {
           status: 'completed',
           'payment.status': 'paid',
           'payment.method': paymentMode,
@@ -303,9 +315,10 @@ export const CashierDashboard: React.FC = () => {
 
         if (tableId) {
           try {
-            await updateDoc(doc(db, 'tenants', tenantId, 'tables', tableId), { status: 'cleaning' });
+            await updateDoc(doc(db, 'tenants', selectedTenantId, 'tables', tableId), { status: 'cleaning', activeOrderId: null });
           } catch (err) {}
         }
+        await EventService.logEvent(selectedTenantId, 'payment.completed', billId, profile?.uid || 'cashier', { amount: selectedBill.total, method: paymentMode, tableId }, false);
       }
 
       toast.success(`Bill for ${selectedBill.tableNumber} settled successfully via ${paymentMode.toUpperCase()}!`);
@@ -455,9 +468,27 @@ export const CashierDashboard: React.FC = () => {
                   <p className="text-xs text-zinc-500">Unpaid table invoices awaiting cashier settlement</p>
                 </div>
               </div>
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
-                {pendingBills.length} Pending Invoices
-              </span>
+              <div className="flex items-center gap-2">
+                {(isMockMode || profile?.role === 'super-admin') && tenantList.length > 0 && (
+                  <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-850 px-3.5 py-1.5 rounded-xl">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Tenant:</span>
+                    <select
+                      value={selectedTenantId}
+                      onChange={(e) => setSelectedTenantId(e.target.value)}
+                      className="bg-transparent text-xs text-white focus:outline-none cursor-pointer font-extrabold"
+                    >
+                      {tenantList.map((t) => (
+                        <option key={t.id} value={t.id} className="bg-zinc-950 text-zinc-300">
+                          {t.name} ({t.id.slice(7)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                  {pendingBills.length} Pending Invoices
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

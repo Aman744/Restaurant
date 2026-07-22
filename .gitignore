@@ -19,6 +19,7 @@ Thumbs.db
 .vscode/
 .idea/
 .gemini/
+.serena/
 
 # Compiled config assets (Vite TS compilation outputs)
 vite.config.js

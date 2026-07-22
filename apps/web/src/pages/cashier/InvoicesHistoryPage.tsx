@@ -4,7 +4,7 @@ import { CreditCard, Receipt, Printer, X, Clock, Search, Filter, IndianRupee, Ar
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
 import { db } from '../../lib/firebase.js';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { OrderRepository } from '@restaurant-qr/infra';
 import type { Order } from '@restaurant-qr/core';
 
 const MOCK_ORDERS_KEY = 'restaurant_qr_mock_orders_db';
@@ -47,7 +47,7 @@ export const InvoicesHistoryPage: React.FC = () => {
           try {
             const parsed: Order[] = JSON.parse(stored);
             const paidOrders = parsed.filter(
-              (o: any) => o.payment?.status === 'paid' || o.status === 'completed'
+              (o: any) => (o.payment?.status === 'paid' || o.status === 'completed') && o.tenantId === tenantId
             );
             if (active) {
               setSettledOrders(paidOrders);
@@ -69,60 +69,15 @@ export const InvoicesHistoryPage: React.FC = () => {
         clearInterval(interval);
       };
     } else {
-      const colRef = collection(db, 'tenants', tenantId, 'orders');
-      const unsubscribe = onSnapshot(colRef, async (snap) => {
-        const paidOrders: Order[] = [];
-
-        for (const docSnap of snap.docs) {
-          const data = docSnap.data();
-          const toDate = (val: any): Date => {
-            if (!val) return new Date();
-            if (typeof val.toDate === 'function') return val.toDate();
-            return new Date(val);
-          };
-
-          let items = Array.isArray(data.items) && data.items.length > 0 ? data.items : [];
-          if (items.length === 0) {
-            try {
-              const itemsCol = collection(db, 'tenants', tenantId, 'orders', docSnap.id, 'order_items');
-              const itemsSnap = await getDocs(itemsCol);
-              items = itemsSnap.docs.map((it: any) => ({ id: it.id, ...it.data() }));
-            } catch (err) {}
-          }
-
-          if (items.length === 0) {
-            items = [{
-              id: `item_fb_${docSnap.id}`,
-              menuItemId: 'item_01',
-              name: 'Chef Special Order Dish',
-              quantity: 1,
-              unitPrice: data.totals?.grandTotal || 50,
-              totalPrice: data.totals?.grandTotal || 50,
-              stationId: 'main',
-              status: 'ready'
-            }];
-          }
-
-          const orderObj = {
-            id: docSnap.id,
-            ...data,
-            items,
-            createdAt: toDate(data.createdAt),
-            updatedAt: toDate(data.updatedAt)
-          } as Order;
-
-          if (data.payment?.status === 'paid' || data.status === 'completed') {
-            paidOrders.push(orderObj);
-          }
-        }
-
+      const repo = new OrderRepository(db);
+      const unsubscribe = repo.subscribeAll(tenantId, (ordersList) => {
+        const paidOrders = ordersList.filter(
+          (o) => o.payment?.status === 'paid' || o.status === 'completed'
+        );
         if (active) {
           setSettledOrders(paidOrders);
           setLoading(false);
         }
-      }, (err) => {
-        console.error('Invoices subscription failed:', err);
-        if (active) setLoading(false);
       });
 
       return () => {
@@ -168,6 +123,18 @@ export const InvoicesHistoryPage: React.FC = () => {
     .filter((o) => (o.payment?.method || '').toLowerCase() === 'upi')
     .reduce((sum, o) => sum + (o.totals?.grandTotal || 0), 0);
 
+  const getMs = (dateVal: any): number => {
+    if (!dateVal) return 0;
+    if (typeof dateVal.toDate === 'function') {
+      return dateVal.toDate().getTime();
+    }
+    if (dateVal instanceof Date) {
+      return dateVal.getTime();
+    }
+    const parsed = new Date(dateVal);
+    return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  };
+
   // Filtered & Sorted Invoices List
   const filteredInvoices = settledOrders
     .filter((o) => {
@@ -178,7 +145,7 @@ export const InvoicesHistoryPage: React.FC = () => {
       if (!modeMatches) return false;
 
       // Date Filtering
-      const orderDate = new Date(o.updatedAt || o.createdAt || 0);
+      const orderDate = new Date(getMs(o.updatedAt || o.createdAt));
       const now = new Date();
 
       if (quickDateFilter === 'today') {
@@ -220,7 +187,7 @@ export const InvoicesHistoryPage: React.FC = () => {
       }
       return true;
     })
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+    .sort((a, b) => getMs(b.updatedAt || b.createdAt) - getMs(a.updatedAt || a.createdAt));
 
   // Single Invoice File Downloader
   const handleDownloadSingleInvoice = (order: Order) => {

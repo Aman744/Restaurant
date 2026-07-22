@@ -56,12 +56,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
+          
+          let currentRole = parsed.claims?.role || 'customer';
+          if (parsed.email) {
+            const emailLower = parsed.email.toLowerCase();
+            if (emailLower.startsWith('superadmin') || emailLower.includes('superadmin')) {
+              currentRole = 'super-admin';
+            }
+          }
+          const updatedClaims = {
+            ...parsed.claims,
+            role: currentRole,
+            tenantId: currentRole === 'super-admin' ? null : (parsed.claims?.tenantId || 'tenant_dev_123')
+          };
+
           setUser({
             uid: parsed.uid,
             email: parsed.email,
             displayName: parsed.displayName,
             getIdTokenResult: async () => ({
-              claims: parsed.claims || {}
+              claims: updatedClaims
             })
           });
         } catch (e) {
@@ -98,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!storedUser) {
           if (password === 'Admin@123') {
             let role = 'customer';
-            if (email.startsWith('superadmin')) role = 'super-admin';
+            if (email.startsWith('superadmin') || email.includes('superadmin')) role = 'super-admin';
             else if (email.startsWith('admin')) role = 'restaurant-admin';
             else if (email.startsWith('manager')) role = 'manager';
             else if (email.startsWith('kitchen')) role = 'kitchen-staff';
@@ -134,13 +148,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw new Error('Invalid email or password.');
         }
 
+        let resolvedRole = storedUser.claims?.role || 'customer';
+        if (email.toLowerCase().startsWith('superadmin') || email.toLowerCase().includes('superadmin')) {
+          resolvedRole = 'super-admin';
+        }
+        const finalClaims = {
+          ...storedUser.claims,
+          role: resolvedRole,
+          tenantId: resolvedRole === 'super-admin' ? null : (storedUser.claims?.tenantId || 'tenant_dev_123')
+        };
+
         setUser({
           uid: storedUser.uid,
           email: storedUser.email,
           displayName: storedUser.displayName,
-          getIdTokenResult: async () => ({ claims: storedUser.claims })
+          getIdTokenResult: async () => ({ claims: finalClaims })
         });
-        localStorage.setItem(MOCK_USER_KEY, JSON.stringify(storedUser));
+        localStorage.setItem(MOCK_USER_KEY, JSON.stringify({
+          ...storedUser,
+          claims: finalClaims
+        }));
       } else {
         // Real Firebase login
         const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -154,7 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Infer role from email prefix as a safe bootstrap default
           // (the real role is set properly during account provisioning via Super Admin)
           let inferredRole = 'restaurant-admin';
-          if (email.startsWith('superadmin') || email.includes('+superadmin')) inferredRole = 'super-admin';
+          if (email.startsWith('superadmin') || email.includes('superadmin')) inferredRole = 'super-admin';
 
           // Use the Firebase Auth UID as the stable tenantId.
           // This guarantees menu items always land at /tenants/{uid}/... consistently.

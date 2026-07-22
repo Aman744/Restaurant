@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { DashboardLayout } from '../../components/shared/DashboardLayout';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
-import { db } from '../../lib/firebase.js';
 import { useAuth } from '../../features/auth/context/AuthContext.js';
 import { useTenant } from '../../features/auth/context/TenantContext.js';
-import { MenuItemConverter } from '@restaurant-qr/infra';
-import type { Order, MenuItem, Table as RestaurantTable, UserProfile } from '@restaurant-qr/core';
 import {
   LayoutDashboard,
   ChefHat,
@@ -44,117 +40,6 @@ export const RestaurantAdminDashboard: React.FC = () => {
     { name: 'Settings', path: `${basePath}/settings`, icon: Settings }
   ];
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [tables, setTables] = useState<RestaurantTable[]>([]);
-  const [staff, setStaff] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Subscribe to real-time collections or mock data
-  useEffect(() => {
-    if (!tenantId) return;
-    let active = true;
-
-    if (isMockMode) {
-      const syncMock = () => {
-        const storedMenu = localStorage.getItem('restaurant_qr_mock_menu_db');
-        const storedTables = localStorage.getItem('restaurant_qr_mock_tables_db');
-        const storedOrders = localStorage.getItem('restaurant_qr_mock_orders_db');
-        const storedStaff = localStorage.getItem('restaurant_qr_mock_staff_db');
-
-        if (active) {
-          if (storedMenu) {
-            try {
-              const all: MenuItem[] = JSON.parse(storedMenu);
-              setMenuItems(all.filter((m) => m.tenantId === tenantId));
-            } catch (e) {}
-          }
-          if (storedTables) {
-            try {
-              const all: RestaurantTable[] = JSON.parse(storedTables);
-              setTables(all.filter((t) => t.tenantId === tenantId));
-            } catch (e) {}
-          }
-          if (storedOrders) {
-            try {
-              const all: Order[] = JSON.parse(storedOrders);
-              setOrders(all.filter((o) => o.tenantId === tenantId));
-            } catch (e) {}
-          }
-          if (storedStaff) {
-            try {
-              const all: UserProfile[] = JSON.parse(storedStaff);
-              setStaff(all.filter((s) => (s as any).tenantId === tenantId));
-            } catch (e) {}
-          }
-          setLoading(false);
-        }
-      };
-
-      syncMock();
-      const interval = setInterval(syncMock, 2000);
-      return () => {
-        active = false;
-        clearInterval(interval);
-      };
-    } else {
-      const unsubs = [
-        onSnapshot(
-          collection(db, 'tenants', tenantId, 'orders'),
-          async (snap) => {
-            const fetchedOrders: Order[] = [];
-            for (const docSnap of snap.docs) {
-              const data = docSnap.data();
-              let orderItems = data.items || [];
-              if (!orderItems || orderItems.length === 0) {
-                try {
-                  const subCol = await getDocs(collection(db, 'tenants', tenantId, 'orders', docSnap.id, 'order_items'));
-                  orderItems = subCol.docs.map((itemDoc) => ({ id: itemDoc.id, ...itemDoc.data() }));
-                } catch (e) {}
-              }
-              fetchedOrders.push({ id: docSnap.id, ...data, items: orderItems } as Order);
-            }
-            if (active) setOrders(fetchedOrders);
-          },
-          (err) => console.warn('Orders listener notice:', err.message)
-        ),
-        onSnapshot(
-          collection(db, 'tenants', tenantId, 'menu_items').withConverter(MenuItemConverter),
-          (snap) => {
-            const items: MenuItem[] = [];
-            snap.forEach((d) => items.push(d.data() as MenuItem));
-            if (active) setMenuItems(items);
-          },
-          (err) => console.warn('Menu listener notice:', err.message)
-        ),
-        onSnapshot(
-          collection(db, 'tenants', tenantId, 'tables'),
-          (snap) => {
-            const items: RestaurantTable[] = [];
-            snap.forEach((d) => items.push({ id: d.id, ...d.data() } as RestaurantTable));
-            if (active) setTables(items);
-          },
-          (err) => console.warn('Tables listener notice:', err.message)
-        ),
-        onSnapshot(
-          collection(db, 'tenants', tenantId, 'staff'),
-          (snap) => {
-            const items: UserProfile[] = [];
-            snap.forEach((d) => items.push({ uid: d.id, ...d.data() } as UserProfile));
-            if (active) setStaff(items);
-          },
-          (err) => console.warn('Staff listener notice:', err.message)
-        )
-      ];
-
-      if (active) setLoading(false);
-      return () => {
-        active = false;
-        unsubs.forEach((unsub) => unsub());
-      };
-    }
-  }, [tenantId, isMockMode]);
-
   // Route active tab based on path
   const path = location.pathname;
   let activeTab = 'overview';
@@ -165,27 +50,14 @@ export const RestaurantAdminDashboard: React.FC = () => {
   else if (path.endsWith('/reports')) activeTab = 'reports';
   else if (path.endsWith('/settings')) activeTab = 'settings';
 
-  if (loading) {
-    return (
-      <DashboardLayout title="Restaurant Admin Portal" sidebarItems={sidebarItems}>
-        <div className="flex h-64 items-center justify-center text-zinc-400">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent"></div>
-            <p className="text-xs font-semibold">Loading operations dashboard...</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout title="Restaurant Operations & Management" sidebarItems={sidebarItems}>
-      {activeTab === 'overview' && <DashboardOverviewTab orders={orders} tables={tables} />}
-      {activeTab === 'orders' && <OrdersTab tenantId={tenantId} orders={orders} isMockMode={isMockMode} />}
-      {activeTab === 'menu' && <MenuTab tenantId={tenantId} menuItems={menuItems} isMockMode={isMockMode} />}
-      {activeTab === 'tables' && <TablesTab tenantId={tenantId} tables={tables} isMockMode={isMockMode} />}
-      {activeTab === 'staff' && <StaffTab tenantId={tenantId} staff={staff} isMockMode={isMockMode} />}
-      {activeTab === 'reports' && <ReportsTab orders={orders} />}
+      {activeTab === 'overview' && <DashboardOverviewTab tenantId={tenantId} isMockMode={isMockMode} />}
+      {activeTab === 'orders' && <OrdersTab tenantId={tenantId} isMockMode={isMockMode} />}
+      {activeTab === 'menu' && <MenuTab tenantId={tenantId} isMockMode={isMockMode} />}
+      {activeTab === 'tables' && <TablesTab tenantId={tenantId} isMockMode={isMockMode} />}
+      {activeTab === 'staff' && <StaffTab tenantId={tenantId} isMockMode={isMockMode} />}
+      {activeTab === 'reports' && <ReportsTab tenantId={tenantId} isMockMode={isMockMode} />}
       {activeTab === 'settings' && <SettingsTab tenantId={tenantId} isMockMode={isMockMode} />}
     </DashboardLayout>
   );
