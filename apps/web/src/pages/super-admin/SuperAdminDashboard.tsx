@@ -474,9 +474,9 @@ export const SuperAdminDashboard: React.FC = () => {
     localStorage.setItem('impersonate_role', 'restaurant-admin');
     localStorage.setItem('impersonate_tenantId', targetTenantId);
     localStorage.setItem('impersonate_tenantName', tenantName);
-    await refreshProfile();
     toast.success(`Entering Impersonation mode for restaurant: "${tenantName}" as Restaurant Admin.`);
-    setTimeout(() => { navigate('/admin'); }, 1000);
+    navigate('/admin');
+    await refreshProfile();
   };
 
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
