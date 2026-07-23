@@ -61,6 +61,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
   const [logoError, setLogoError] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
     try {
@@ -451,6 +463,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, titl
                 Exit Impersonate
               </button>
             )}
+
+            {/* Health Connectivity Status Indicator */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-800 bg-zinc-900/40 select-none">
+              <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+              <span className="text-[10px] font-bold text-zinc-400">
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
+            </div>
 
             {/* Theme Mode Toggle Button */}
             <button

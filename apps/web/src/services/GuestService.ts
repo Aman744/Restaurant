@@ -1,4 +1,5 @@
 import { db } from '../lib/firebase.js';
+import { doc, runTransaction, collection, getDocs } from 'firebase/firestore';
 import { RoomStayRepository, RoomRepository, OrderRepository } from '@restaurant-qr/infra';
 import type { RoomStay, StayGuest, HousekeepingTask, RoomFeedback, RoomTimelineEvent, Room } from '@restaurant-qr/core';
 
@@ -180,17 +181,33 @@ export class GuestService {
       localStorage.setItem(MOCK_ROOMS_KEY, JSON.stringify(rooms));
       window.dispatchEvent(new Event('storage'));
     } else {
-      const stayRepo = new RoomStayRepository(db);
-      await stayRepo.saveStay(tenantId, newStay);
-      await stayRepo.saveGuest(tenantId, newGuest);
+      const roomDocRef = doc(db, 'tenants', tenantId, 'rooms', roomId);
+      const stayDocRef = doc(db, 'tenants', tenantId, 'active_room_stays', stayId);
+      const guestDocRef = doc(db, 'tenants', tenantId, 'stay_guests', guestId);
 
-      const roomRepo = new RoomRepository(db);
-      const room = await roomRepo.getById(tenantId, roomId);
-      if (room) {
-        room.status = 'checked-in';
-        room.activeStayId = stayId;
-        await roomRepo.save(tenantId, room);
-      }
+      await runTransaction(db, async (transaction) => {
+        const roomSnap = await transaction.get(roomDocRef);
+        if (!roomSnap.exists()) {
+          throw new Error('ROOM_NOT_FOUND');
+        }
+        const room = roomSnap.data() as Room;
+
+        // Idempotency check: if this room is already checked-in with this activeStayId, exit gracefully
+        if (room.status === 'checked-in' && room.activeStayId) {
+          return;
+        }
+
+        if (room.status !== 'available' && room.status !== 'reserved') {
+          throw new Error('ROOM_ALREADY_OCCUPIED');
+        }
+
+        transaction.set(stayDocRef, newStay);
+        transaction.set(guestDocRef, newGuest);
+        transaction.update(roomDocRef, {
+          status: 'checked-in',
+          activeStayId: stayId
+        });
+      });
     }
 
     // Add Timeline event
@@ -508,29 +525,105 @@ export class GuestService {
 
       window.dispatchEvent(new Event('storage'));
     } else {
-      const stayRepo = new RoomStayRepository(db);
-      // Archive snapshot
-      await stayRepo.saveHistory(tenantId, staySnapshot);
-      // Delete active stay
-      await stayRepo.deleteStay(tenantId, stayId);
+      const roomDocRef = doc(db, 'tenants', tenantId, 'rooms', roomId);
+      const stayDocRef = doc(db, 'tenants', tenantId, 'active_room_stays', stayId);
+      const historyDocRef = doc(db, 'tenants', tenantId, 'room_history', stayId);
+      const taskDocRef = doc(db, 'tenants', tenantId, 'housekeeping_tasks', `task_${generateUUID().replace(/-/g, '').slice(0, 8)}`);
 
-      // Create Housekeeping Task
-      const task: HousekeepingTask = {
-        id: `task_${generateUUID().replace(/-/g, '').slice(0, 8)}`,
-        tenantId,
-        roomId,
-        roomNumber: room.roomNumber,
-        roomName: room.roomName,
-        status: 'pending',
-        createdAt: now
-      };
-      await stayRepo.saveHousekeepingTask(tenantId, task);
+      await runTransaction(db, async (transaction) => {
+        const roomSnap = await transaction.get(roomDocRef);
+        if (!roomSnap.exists()) throw new Error('ROOM_NOT_FOUND');
+        const roomData = roomSnap.data() as Room;
 
-      // Reset Room (Move to checkout, clear active stay)
-      const roomRepo = new RoomRepository(db);
-      room.status = 'checkout';
-      room.activeStayId = undefined;
-      await roomRepo.save(tenantId, room);
+        // Idempotency check: if room is already checked out, exit gracefully
+        if (roomData.status === 'checkout' || !roomData.activeStayId) {
+          return;
+        }
+
+        const staySnap = await transaction.get(stayDocRef);
+        if (!staySnap.exists()) throw new Error('STAY_CONTEXT_NOT_FOUND');
+        const stayData = staySnap.data() as RoomStay;
+
+        // Read guests
+        const guestsColRef = collection(db, 'tenants', tenantId, 'stay_guests');
+        const guestsSnap = await getDocs(guestsColRef);
+        const stayGuests = guestsSnap.docs
+          .map((d) => d.data() as StayGuest)
+          .filter((g) => g.stayId === stayId);
+
+        // Read orders
+        const ordersColRef = collection(db, 'tenants', tenantId, 'orders');
+        const ordersSnap = await getDocs(ordersColRef);
+        const stayOrders = ordersSnap.docs
+          .map((d) => d.data() as any)
+          .filter((o) => o.tableId === roomId && o.stayId === stayId);
+
+        // Checkout blockers
+        const activeOrdersList = stayOrders.filter((o) => ['pending', 'accepted', 'preparing', 'ready', 'served'].includes(o.status));
+        if (activeOrdersList.length > 0) {
+          throw new Error('ACTIVE_ORDERS_BLOCKED');
+        }
+
+        const unpaidOrdersList = stayOrders.filter((o) => o.payment.status !== 'paid');
+        if (unpaidOrdersList.length > 0) {
+          throw new Error('UNPAID_ORDERS_BLOCKED');
+        }
+
+        // Calculate stay values
+        const foodCharges = stayOrders.reduce((sum, o) => sum + (o.totals.grandTotal || 0), 0);
+        let roomCharges = 0;
+        if (roomData.billingMode === 'FIXED' || roomData.billingMode === 'PACKAGE') {
+          roomCharges = roomData.basePrice || 0;
+        } else if (roomData.billingMode === 'HOURLY') {
+          const checkInDateTime = new Date(`${stayData.checkInDate}T${stayData.checkInTime}`);
+          const diffMs = now.getTime() - checkInDateTime.getTime();
+          const diffHours = Math.ceil(diffMs / (1000 * 60 * 60)) || 1;
+          roomCharges = diffHours * (roomData.hourlyRate || 0);
+        } else if (roomData.billingMode === 'MINIMUM_SPEND') {
+          const minSpend = roomData.minimumSpend || 0;
+          if (foodCharges < minSpend) {
+            roomCharges = minSpend - foodCharges;
+          }
+        }
+
+        const subtotal = roomCharges + foodCharges;
+        const serviceChargeVal = roomData.serviceCharge || 0;
+        const tax = Math.round(subtotal * 0.18);
+        const grandTotal = subtotal + Math.round(subtotal * (serviceChargeVal / 100)) + tax;
+
+        const staySnapshot = {
+          ...stayData,
+          checkOutDate,
+          checkOutTime,
+          status: 'checked-out' as const,
+          orderIds: stayOrders.map(o => o.id),
+          roomCharges,
+          foodCharges,
+          tax,
+          grandTotal,
+          paymentStatus: 'Paid' as const,
+          guests: stayGuests,
+          orders: stayOrders
+        };
+
+        const task: HousekeepingTask = {
+          id: taskDocRef.id,
+          tenantId,
+          roomId,
+          roomNumber: roomData.roomNumber,
+          roomName: roomData.roomName,
+          status: 'pending',
+          createdAt: now
+        };
+
+        transaction.set(historyDocRef, staySnapshot);
+        transaction.delete(stayDocRef);
+        transaction.set(taskDocRef, task);
+        transaction.update(roomDocRef, {
+          status: 'checkout',
+          activeStayId: null
+        });
+      });
     }
 
     return staySnapshot;

@@ -1,4 +1,5 @@
 import { db } from '../lib/firebase.js';
+import { doc, runTransaction, collection } from 'firebase/firestore';
 import { OrderRepository } from '@restaurant-qr/infra';
 import type { Order, OrderStatus } from '@restaurant-qr/core';
 
@@ -63,25 +64,28 @@ export class OrderService {
       return;
     }
 
-    const repo = new OrderRepository(db);
-    const order = await repo.getById(tenantId, orderId);
-    if (order) {
-      order.status = 'completed';
-      order.statusHistory = order.statusHistory || [];
-      order.statusHistory.push({
+    const orderDocRef = doc(db, 'tenants', tenantId, 'orders', orderId);
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(orderDocRef);
+      if (!snap.exists()) throw new Error('ORDER_NOT_FOUND');
+      const orderData = snap.data() as Order;
+
+      // Idempotency: skip if already settled
+      if (orderData.payment?.status === 'paid') {
+        return;
+      }
+
+      transaction.update(orderDocRef, {
         status: 'completed',
-        timestamp: new Date(),
-        actorId: 'cashier'
+        payment: {
+          status: 'paid',
+          method: paymentMethod,
+          amountPaid: amount,
+          amountPaidMinor: Math.round(amount * 100)
+        },
+        updatedAt: new Date()
       });
-      order.payment = {
-        status: 'paid',
-        method: paymentMethod,
-        amountPaid: amount,
-        amountPaidMinor: Math.round(amount * 100)
-      };
-      order.updatedAt = new Date();
-      await repo.save(tenantId, order);
-    }
+    });
   }
 
   /**
@@ -114,12 +118,29 @@ export class OrderService {
     if (isMockMode) {
       const stored = localStorage.getItem(MOCK_ORDERS_KEY);
       const existingOrders = stored ? JSON.parse(stored) : [];
+      // Idempotency check for mock mode
+      if (existingOrders.some((o: any) => o.id === order.id)) return;
       existingOrders.push(order);
       localStorage.setItem(MOCK_ORDERS_KEY, JSON.stringify(existingOrders));
       return;
     }
 
-    const repo = new OrderRepository(db);
-    await repo.save(tenantId, order);
+    const orderDocRef = doc(db, 'tenants', tenantId, 'orders', order.id);
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(orderDocRef);
+      if (snap.exists()) {
+        return; // Idempotent exit
+      }
+
+      // Write order header
+      transaction.set(orderDocRef, order);
+
+      // Write order items inside sub-collection atomically
+      const itemsColRef = collection(db, 'tenants', tenantId, 'orders', order.id, 'order_items');
+      for (const item of order.items) {
+        const itemDocRef = doc(itemsColRef, item.id);
+        transaction.set(itemDocRef, item);
+      }
+    });
   }
 }

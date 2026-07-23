@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { doc } from 'firebase/firestore';
 import { db } from './lib/firebase.js';
 import { HashRouter as Router } from 'react-router-dom';
@@ -24,6 +24,8 @@ const queryClient = new QueryClient({
 import { onSnapshot } from 'firebase/firestore';
 
 function App() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   useEffect(() => {
     let active = true;
     
@@ -96,9 +98,17 @@ function App() {
       });
     }
 
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     return () => {
       active = false;
       unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
@@ -112,7 +122,15 @@ function App() {
                 <PermissionProvider>
                   <ToastProvider>
                     <ConfirmProvider>
-                      <AppRouter />
+                      <div className="relative min-h-screen">
+                        {!isOnline && (
+                          <div className="fixed top-0 inset-x-0 z-[9999] bg-red-500/90 text-white font-extrabold text-xs text-center py-2.5 shadow-lg backdrop-blur-sm flex items-center justify-center gap-2 select-none animate-slideDown border-b border-red-400">
+                            <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                            NO INTERNET CONNECTION — OPERATING IN OFFLINE RECOVERY MODE
+                          </div>
+                        )}
+                        <AppRouter />
+                      </div>
                     </ConfirmProvider>
                   </ToastProvider>
                 </PermissionProvider>
