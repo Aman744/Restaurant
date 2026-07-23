@@ -6,6 +6,7 @@ export interface Column<T> {
   accessorKey?: keyof T;
   cell?: (row: T) => React.ReactNode;
   sortable?: boolean;
+  align?: 'left' | 'center' | 'right';
 }
 
 interface DataTableProps<T> {
@@ -112,28 +113,35 @@ export function DataTable<T extends Record<string, any>>({
           <table className="w-full text-left text-xs text-zinc-300">
             <thead className="bg-zinc-950/80 border-b border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-400 font-semibold">
               <tr>
-                {columns.map((col, idx) => (
-                  <th
-                    key={idx}
-                    className="px-6 py-4"
-                    onClick={() => col.sortable && handleSort(col.accessorKey)}
-                  >
-                    <div className="flex items-center gap-1.5 cursor-pointer select-none">
-                      <span>{col.header}</span>
-                      {col.sortable && <ArrowUpDown className="h-3 w-3 text-zinc-600 hover:text-zinc-300" />}
-                    </div>
-                  </th>
-                ))}
+                {columns.map((col, idx) => {
+                  const alignmentClass = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
+                  const flexAlignmentClass = col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start';
+                  return (
+                    <th
+                      key={idx}
+                      className={`px-6 py-4 ${alignmentClass}`}
+                      onClick={() => col.sortable && handleSort(col.accessorKey)}
+                    >
+                      <div className={`flex items-center gap-1.5 cursor-pointer select-none ${flexAlignmentClass}`}>
+                        <span>{col.header}</span>
+                        {col.sortable && <ArrowUpDown className="h-3 w-3 text-zinc-600 hover:text-zinc-350" />}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-850">
               {paginatedData.map((row, rowIdx) => (
                 <tr key={rowIdx} className="hover:bg-zinc-800/20 transition">
-                  {columns.map((col, colIdx) => (
-                    <td key={colIdx} className="px-6 py-4">
-                      {col.cell ? col.cell(row) : col.accessorKey ? row[col.accessorKey] : null}
-                    </td>
-                  ))}
+                  {columns.map((col, colIdx) => {
+                    const alignmentClass = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
+                    return (
+                      <td key={colIdx} className={`px-6 py-4 ${alignmentClass}`}>
+                        {col.cell ? col.cell(row) : col.accessorKey ? row[col.accessorKey] : null}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
 

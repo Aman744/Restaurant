@@ -30,6 +30,7 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
   const toast = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   const {
     register,
@@ -105,6 +106,16 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <style dangerouslySetInnerHTML={{__html: `
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 1000px #18181b inset !important;
+          -webkit-text-fill-color: #f4f4f5 !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+      `}} />
       <div className="w-full max-w-sm border border-zinc-800 bg-zinc-950 p-6 shadow-2xl rounded-3xl text-white space-y-6 animate-fadeIn">
         <div>
           <h3 className="text-base font-extrabold text-white">Edit Staff Details</h3>
@@ -159,11 +170,22 @@ export const EditStaffModal: React.FC<EditStaffModalProps> = ({
           
           <div className="space-y-2">
             <input
-              type="password"
+              type={isPasswordFocused || newPassword ? "password" : "text"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => {
+                if (!newPassword) setIsPasswordFocused(false);
+              }}
               placeholder="Type new 6+ char password"
+              autoComplete="new-password"
               className="w-full border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 rounded-xl focus:outline-none focus:border-red-500/30"
+              style={{
+                WebkitBoxShadow: '0 0 0 1000px #18181b inset',
+                WebkitTextFillColor: '#f4f4f5',
+                backgroundColor: '#18181b',
+                color: '#f4f4f5'
+              }}
             />
             
             <div className="flex gap-2">
