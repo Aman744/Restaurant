@@ -104,6 +104,7 @@ export const RestaurantAdminDashboard: React.FC = () => {
     name: 'Settings',
     icon: Settings,
     subItems: [
+      { name: 'General Settings', path: `${basePath}/settings`, icon: Settings },
       { name: 'Staff', path: `${basePath}/staff`, icon: Users },
       { name: 'Reports', path: `${basePath}/reports`, icon: FileText }
     ]
