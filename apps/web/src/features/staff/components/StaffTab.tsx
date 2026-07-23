@@ -1,5 +1,5 @@
-import React from 'react';
-import { Plus, Trash2, UserCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, UserCheck, Edit } from 'lucide-react';
 import type { UserProfile } from '@restaurant-qr/core';
 import { DataTable, type Column } from '../../../components/shared/DataTable';
 import { useStaffStore } from '../../../stores/useStaffStore';
@@ -7,15 +7,15 @@ import { useConfirm } from '../../../components/shared/ConfirmContext';
 import { useToast } from '../../../components/shared/ToastContext';
 import { StaffService } from '../../../services/StaffService';
 import { AddStaffModal } from './AddStaffModal';
+import { EditStaffModal } from './EditStaffModal';
 
 import { useStaff } from '../../../hooks/useRealtimeData';
+import { useUserProfile } from '../../../features/auth/context/UserContext.js';
 
 interface StaffTabProps {
   tenantId: string;
   isMockMode: boolean;
 }
-
-import { useUserProfile } from '../../../features/auth/context/UserContext.js';
 
 export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
   const { staff, loading } = useStaff(tenantId, isMockMode);
@@ -23,6 +23,7 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
   const { confirm } = useConfirm();
   const toast = useToast();
   const { profile } = useUserProfile();
+  const [editingStaff, setEditingStaff] = useState<UserProfile | null>(null);
 
   const handleDeleteStaff = (member: UserProfile) => {
     // Security check: Managers cannot delete admins, super-admins, or other managers
@@ -67,14 +68,23 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
       accessorKey: 'role',
       sortable: true,
       cell: (s) => (
-        <span className="capitalize px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-emerald-400 border border-emerald-500/10">
-          {s.role}
+        <span className="capitalize px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-850 text-emerald-400 border border-emerald-500/10">
+          {s.role.replace('-', ' ')}
         </span>
       )
     },
     {
       header: 'Joined Date',
-      cell: (s) => <span className="text-zinc-500 text-xs">{new Date(s.createdAt).toLocaleDateString()}</span>
+      cell: (s) => {
+        const parseDate = (val: any): Date => {
+          if (!val) return new Date();
+          if (val instanceof Date) return val;
+          if (typeof val.toDate === 'function') return val.toDate();
+          if (typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+          return new Date(val);
+        };
+        return <span className="text-zinc-500 text-xs">{parseDate(s.createdAt).toLocaleDateString()}</span>;
+      }
     },
     {
       header: 'Actions',
@@ -87,10 +97,17 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
         }
 
         return (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setEditingStaff(s)}
+              className="p-1.5 border border-zinc-850 hover:border-emerald-500/30 rounded-xl text-zinc-400 hover:text-emerald-400 transition"
+              title="Edit Staff Member"
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </button>
             <button
               onClick={() => handleDeleteStaff(s)}
-              className="p-1.5 border border-zinc-800 hover:border-red-500/30 rounded-lg text-zinc-400 hover:text-red-400"
+              className="p-1.5 border border-zinc-850 hover:border-red-500/30 rounded-xl text-zinc-400 hover:text-red-400 transition"
               title="Remove Staff"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -118,7 +135,7 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
         <h3 className="text-sm font-bold text-white uppercase tracking-wider">Restaurant Staff Roster</h3>
         <button
           onClick={() => setAddModalOpen(true)}
-          className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10"
+          className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl shadow-lg shadow-emerald-500/10 cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Add Staff Member
@@ -128,6 +145,7 @@ export const StaffTab: React.FC<StaffTabProps> = ({ tenantId, isMockMode }) => {
       <DataTable data={staff} columns={columns} searchPlaceholder="Search staff by name or email..." searchField="displayName" />
 
       <AddStaffModal tenantId={tenantId} isMockMode={isMockMode} />
+      <EditStaffModal tenantId={tenantId} isMockMode={isMockMode} member={editingStaff} onClose={() => setEditingStaff(null)} />
     </div>
   );
 };

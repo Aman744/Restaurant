@@ -1,7 +1,7 @@
 import { db, firebaseConfig } from '../lib/firebase.js';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signOut as authSignOut } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signOut as authSignOut, sendPasswordResetEmail } from 'firebase/auth';
 import { UserConverter } from '@restaurant-qr/infra';
 import type { UserProfile, UserRole } from '@restaurant-qr/core';
 
@@ -115,6 +115,95 @@ export class StaffService {
         status: 'pending'
       });
     } catch (e) {}
+  }
+
+  /**
+   * Updates a staff member's profile
+   */
+  static async updateStaffMember(
+    tenantId: string,
+    uid: string,
+    data: { displayName: string; role: UserRole },
+    isMockMode: boolean
+  ): Promise<void> {
+    const permissions = getPermissionsForRole(data.role);
+
+    if (isMockMode) {
+      // 1. Update mock staff profile
+      const stored = localStorage.getItem(MOCK_STAFF_KEY);
+      if (stored) {
+        const parsed: UserProfile[] = JSON.parse(stored);
+        const idx = parsed.findIndex((s) => s.uid === uid);
+        if (idx !== -1) {
+          parsed[idx].displayName = data.displayName;
+          parsed[idx].role = data.role;
+          parsed[idx].permissions = permissions;
+          localStorage.setItem(MOCK_STAFF_KEY, JSON.stringify(parsed));
+        }
+      }
+
+      // 2. Update credentials claims
+      const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
+      if (rawDb) {
+        const credentialsDb = JSON.parse(rawDb);
+        const email = Object.keys(credentialsDb).find((k) => credentialsDb[k].uid === uid);
+        if (email) {
+          credentialsDb[email].displayName = data.displayName;
+          credentialsDb[email].claims.role = data.role;
+          localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
+        }
+      }
+      return;
+    }
+
+    // Live mode: update global users doc and tenant subcollection
+    const userDocRef = doc(db, 'users', uid).withConverter(UserConverter);
+    const tenantUserDocRef = doc(db, 'tenants', tenantId, 'users', uid).withConverter(UserConverter);
+
+    await setDoc(userDocRef, { displayName: data.displayName, role: data.role, permissions }, { merge: true });
+    await setDoc(tenantUserDocRef, { displayName: data.displayName, role: data.role, permissions }, { merge: true });
+  }
+
+  /**
+   * Resets a staff member's password
+   */
+  static async resetStaffPassword(
+    tenantId: string,
+    uid: string,
+    email: string,
+    newPassword?: string,
+    isMockMode?: boolean
+  ): Promise<void> {
+    if (isMockMode) {
+      if (newPassword) {
+        const hashed = await hashPasswordLocal(newPassword);
+        const rawDb = localStorage.getItem(MOCK_CREDENTIALS_DB_KEY);
+        if (rawDb) {
+          const credentialsDb = JSON.parse(rawDb);
+          if (credentialsDb[email.toLowerCase()]) {
+            credentialsDb[email.toLowerCase()].passwordHash = hashed;
+            localStorage.setItem(MOCK_CREDENTIALS_DB_KEY, JSON.stringify(credentialsDb));
+          }
+        }
+      }
+      return;
+    }
+
+    // Queue Firebase Auth password reset task
+    if (newPassword) {
+      await setDoc(doc(db, 'auth_reset_queue', uid), {
+        uid,
+        email: email.toLowerCase(),
+        tenantId,
+        newPassword,
+        requestedAt: new Date(),
+        status: 'pending'
+      });
+    }
+
+    // Trigger standard Firebase Client reset email
+    const auth = getAuth();
+    await sendPasswordResetEmail(auth, email);
   }
 }
 
