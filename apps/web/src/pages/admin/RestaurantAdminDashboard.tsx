@@ -72,19 +72,19 @@ export const RestaurantAdminDashboard: React.FC = () => {
   const sidebarItems: any[] = [
     { name: 'Dashboard', path: `${basePath}`, icon: LayoutDashboard },
     {
-      name: 'Restaurent',
+      name: 'Restaurant',
       icon: Utensils,
       subItems: [
-        { name: 'table', path: `${basePath}/tables`, icon: Table },
-        { name: 'order', path: `${basePath}/orders`, icon: Utensils },
-        { name: 'menu', path: `${basePath}/menu`, icon: ChefHat }
+        { name: 'Tables', path: `${basePath}/tables`, icon: Table },
+        { name: 'Orders', path: `${basePath}/orders`, icon: Utensils },
+        { name: 'Menu', path: `${basePath}/menu`, icon: ChefHat }
       ]
     }
   ];
 
   if (roomsActive) {
     sidebarItems.push({
-      name: 'rooms',
+      name: 'Rooms',
       icon: DoorOpen,
       subItems: [
         { name: 'Rooms Dashboard', path: `${basePath}/rooms#rooms`, icon: DoorOpen },
@@ -94,18 +94,18 @@ export const RestaurantAdminDashboard: React.FC = () => {
           icon: Sparkles,
           badge: pendingTasksCount > 0 ? pendingTasksCount : undefined
         },
-        { name: 'Stays History logs', path: `${basePath}/rooms#history`, icon: History },
+        { name: 'Stays History', path: `${basePath}/rooms#history`, icon: History },
         { name: 'Room Services', path: `${basePath}/rooms#services`, icon: SlidersHorizontal }
       ]
     });
   }
 
   sidebarItems.push({
-    name: 'Setting',
+    name: 'Settings',
     icon: Settings,
     subItems: [
-      { name: 'staff', path: `${basePath}/staff`, icon: Users },
-      { name: 'reports', path: `${basePath}/reports`, icon: FileText }
+      { name: 'Staff', path: `${basePath}/staff`, icon: Users },
+      { name: 'Reports', path: `${basePath}/reports`, icon: FileText }
     ]
   });
 
